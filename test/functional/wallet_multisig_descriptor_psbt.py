@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2021-2022 The Bitcoin Core developers
+# Copyright (c) 2021-present The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test a basic M-of-N multisig setup between multiple people using descriptor wallets and PSBTs, as well as a signing flow.
@@ -36,13 +36,13 @@ class WalletMultisigDescriptorPSBTTest(BitcoinTestFramework):
     @staticmethod
     def _check_psbt(psbt, to, value, multisig):
         """Helper function for any of the N participants to check the psbt with decodepsbt and verify it is OK before signing."""
-        tx = multisig.decodepsbt(psbt)["tx"]
+        decoded = multisig.decodepsbt(psbt)
         amount = 0
-        for vout in tx["vout"]:
-            address = vout["scriptPubKey"]["address"]
+        for psbt_out in decoded["outputs"]:
+            address = psbt_out["script"]["address"]
             assert_equal(multisig.getaddressinfo(address)["ischange"], address != to)
             if address == to:
-                amount += vout["value"]
+                amount += psbt_out["amount"]
         assert_approx(amount, float(value), vspan=0.001)
 
     def participants_create_multisigs(self, xpubs):
@@ -86,9 +86,11 @@ class WalletMultisigDescriptorPSBTTest(BitcoinTestFramework):
         self.log.info("Check that every participant's multisig generates the same addresses...")
         for _ in range(10):  # we check that the first 10 generated addresses are the same for all participant's multisigs
             receive_addresses = [multisig.getnewaddress() for multisig in participants["multisigs"]]
-            assert all(address == receive_addresses[0] for address in receive_addresses)
+            for address in receive_addresses:
+                assert_equal(address, receive_addresses[0])
             change_addresses = [multisig.getrawchangeaddress() for multisig in participants["multisigs"]]
-            assert all(address == change_addresses[0] for address in change_addresses)
+            for address in change_addresses:
+                assert_equal(address, change_addresses[0])
 
         self.log.info("Get a mature utxo to send to the multisig...")
         coordinator_wallet = participants["signers"][0]

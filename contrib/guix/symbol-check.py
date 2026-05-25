@@ -26,6 +26,13 @@ import lief
 #
 # - libc version 2.34 (https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/)
 #
+# bitcoin-qt
+#
+# Ubuntu 22.04 is currently the baseline for ELF_ALLOWED_LIBRARIES:
+#
+# libfontconfig version 2.13.1 (https://packages.ubuntu.com/jammy/libfontconfig1)
+#
+# libfreetype version 2.11.1 (https://packages.ubuntu.com/jammy/libfreetype6)
 
 MAX_VERSIONS = {
 'GLIBC': {
@@ -39,8 +46,7 @@ MAX_VERSIONS = {
 
 # Ignore symbols that are exported as part of every executable
 IGNORE_EXPORTS = {
-'environ', '_environ', '__environ', '_fini', '_init', 'stdin',
-'stdout', 'stderr',
+'stdin', 'stdout', 'stderr',
 }
 
 # Expected linker-loader names can be found here:
@@ -166,7 +172,7 @@ PE_ALLOWED_LIBRARIES = {
 def check_version(max_versions, version, arch) -> bool:
     (lib, _, ver) = version.rpartition('_')
     ver = tuple([int(x) for x in ver.split('.')])
-    if not lib in max_versions:
+    if lib not in max_versions:
         return False
     if isinstance(max_versions[lib], tuple):
         return ver <= max_versions[lib]
@@ -196,7 +202,7 @@ def check_exported_symbols(binary) -> bool:
         if not symbol.exported:
             continue
         name = symbol.name
-        if binary.header.machine_type == lief.ELF.ARCH.RISCV or name in IGNORE_EXPORTS:
+        if name in IGNORE_EXPORTS:
             continue
         print(f'{filename}: export of symbol {name} not allowed!')
         ok = False
@@ -235,7 +241,7 @@ def check_MACHO_sdk(binary) -> bool:
     return False
 
 def check_MACHO_lld(binary) -> bool:
-    if binary.build_version.tools[0].version == [19, 1, 4]:
+    if binary.build_version.tools[0].version == [19, 1, 7]:
         return True
     return False
 
