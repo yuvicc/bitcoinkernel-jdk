@@ -4,7 +4,6 @@
 
 #include <hash.h>
 #include <key_io.h>
-#include <logging.h>
 #include <node/types.h>
 #include <outputtype.h>
 #include <script/descriptor.h>
@@ -13,6 +12,7 @@
 #include <script/solver.h>
 #include <util/bip32.h>
 #include <util/check.h>
+#include <util/log.h>
 #include <util/strencodings.h>
 #include <util/string.h>
 #include <util/time.h>
@@ -240,7 +240,7 @@ bool LegacyDataSPKM::CheckDecryptionKey(const CKeyingMaterial& master_key)
         }
         if (keyPass && keyFail)
         {
-            LogPrintf("The wallet is probably corrupted: Some keys decrypt but not all.\n");
+            LogWarning("The wallet is probably corrupted: Some keys decrypt but not all.");
             throw std::runtime_error("Error unlocking wallet: some keys decrypt but not all. Your wallet file may be corrupt.");
         }
         if (keyFail || !keyPass)
@@ -339,7 +339,7 @@ bool LegacyDataSPKM::AddCryptedKeyInner(const CPubKey &vchPubKey, const std::vec
 bool LegacyDataSPKM::HaveWatchOnly(const CScript &dest) const
 {
     LOCK(cs_KeyStore);
-    return setWatchOnly.count(dest) > 0;
+    return setWatchOnly.contains(dest);
 }
 
 bool LegacyDataSPKM::LoadWatchOnly(const CScript &dest)
@@ -385,7 +385,7 @@ bool LegacyDataSPKM::HaveKey(const CKeyID &address) const
     if (!m_storage.HasEncryptionKeys()) {
         return FillableSigningProvider::HaveKey(address);
     }
-    return mapCryptedKeys.count(address) > 0;
+    return mapCryptedKeys.contains(address);
 }
 
 bool LegacyDataSPKM::GetKey(const CKeyID &address, CKey& keyOut) const
@@ -560,7 +560,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
                 keyid_it++;
                 continue;
             }
-            if (!meta.hd_seed_id.IsNull() && (m_hd_chain.seed_id == meta.hd_seed_id || m_inactive_hd_chains.count(meta.hd_seed_id) > 0)) {
+            if (!meta.hd_seed_id.IsNull() && (m_hd_chain.seed_id == meta.hd_seed_id || m_inactive_hd_chains.contains(meta.hd_seed_id))) {
                 keyid_it = keyids.erase(keyid_it);
                 continue;
             }
@@ -570,7 +570,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
 
     WalletBatch batch(m_storage.GetDatabase());
     if (!batch.TxnBegin()) {
-        LogPrintf("Error generating descriptors for migration, cannot initialize db transaction\n");
+        LogWarning("Error generating descriptors for migration, cannot initialize db transaction");
         return std::nullopt;
     }
 
@@ -717,10 +717,9 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
 
         std::vector<CScript> desc_spks;
 
-        // Make the descriptor string with private keys
-        std::string desc_str;
-        bool watchonly = !desc->ToPrivateString(*this, desc_str);
-        if (watchonly && !m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
+        // If we can't provide all private keys for this inferred descriptor,
+        // but this wallet is not watch-only, migrate it to the watch-only wallet.
+        if (!desc->HavePrivateKeys(*this) && !m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
             out.watch_descs.emplace_back(desc->ToString(), creation_time);
 
             // Get the scriptPubKeys without writing this to the wallet
@@ -755,7 +754,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
 
     // Make sure that we have accounted for all scriptPubKeys
     if (!Assume(spks.empty())) {
-        LogPrintf("%s\n", STR_INTERNAL_BUG("Error: Some output scripts were not migrated.\n"));
+        LogError("%s", STR_INTERNAL_BUG("Error: Some output scripts were not migrated."));
         return std::nullopt;
     }
 
@@ -809,7 +808,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
 
     // Finalize transaction
     if (!batch.TxnCommit()) {
-        LogPrintf("Error generating descriptors for migration, cannot commit db transaction\n");
+        LogWarning("Error generating descriptors for migration, cannot commit db transaction");
         return std::nullopt;
     }
 
@@ -889,7 +888,7 @@ bool DescriptorScriptPubKeyMan::CheckDecryptionKey(const CKeyingMaterial& master
             break;
     }
     if (keyPass && keyFail) {
-        LogPrintf("The wallet is probably corrupted: Some keys decrypt but not all.\n");
+        LogWarning("The wallet is probably corrupted: Some keys decrypt but not all.");
         throw std::runtime_error("Error unlocking wallet: some keys decrypt but not all. Your wallet file may be corrupt.");
     }
     if (keyFail || !keyPass) {
@@ -1039,7 +1038,7 @@ bool DescriptorScriptPubKeyMan::TopUpWithDB(WalletBatch& batch, unsigned int siz
         }
         for (const auto& pk_pair : out_keys.pubkeys) {
             const CPubKey& pubkey = pk_pair.second;
-            if (m_map_pubkeys.count(pubkey) != 0) {
+            if (m_map_pubkeys.contains(pubkey)) {
                 // We don't need to give an error here.
                 // It doesn't matter which of many valid indexes the pubkey has, we just need an index where we can derive it and its private key
                 continue;
@@ -1107,8 +1106,8 @@ bool DescriptorScriptPubKeyMan::AddDescriptorKeyWithDB(WalletBatch& batch, const
     assert(!m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS));
 
     // Check if provided key already exists
-    if (m_map_keys.find(pubkey.GetID()) != m_map_keys.end() ||
-        m_map_crypted_keys.find(pubkey.GetID()) != m_map_crypted_keys.end()) {
+    if (m_map_keys.contains(pubkey.GetID()) ||
+        m_map_crypted_keys.contains(pubkey.GetID())) {
         return true;
     }
 
@@ -1286,7 +1285,7 @@ bool DescriptorScriptPubKeyMan::SignTransaction(CMutableTransaction& tx, const s
         keys->Merge(std::move(*coin_keys));
     }
 
-    return ::SignTransaction(tx, keys.get(), coins, sighash, input_errors);
+    return ::SignTransaction(tx, keys.get(), coins, {.sighash_type = sighash}, input_errors);
 }
 
 SigningResult DescriptorScriptPubKeyMan::SignMessage(const std::string& message, const PKHash& pkhash, std::string& str_sig) const
@@ -1307,13 +1306,12 @@ SigningResult DescriptorScriptPubKeyMan::SignMessage(const std::string& message,
     return SigningResult::OK;
 }
 
-std::optional<PSBTError> DescriptorScriptPubKeyMan::FillPSBT(PartiallySignedTransaction& psbtx, const PrecomputedTransactionData& txdata, std::optional<int> sighash_type, bool sign, bool bip32derivs, int* n_signed, bool finalize) const
+std::optional<PSBTError> DescriptorScriptPubKeyMan::FillPSBT(PartiallySignedTransaction& psbtx, const PrecomputedTransactionData& txdata, const common::PSBTFillOptions& options, int* n_signed) const
 {
     if (n_signed) {
         *n_signed = 0;
     }
-    for (unsigned int i = 0; i < psbtx.tx->vin.size(); ++i) {
-        const CTxIn& txin = psbtx.tx->vin[i];
+    for (unsigned int i = 0; i < psbtx.inputs.size(); ++i) {
         PSBTInput& input = psbtx.inputs.at(i);
 
         if (PSBTInputSigned(input)) {
@@ -1325,17 +1323,17 @@ std::optional<PSBTError> DescriptorScriptPubKeyMan::FillPSBT(PartiallySignedTran
         if (!input.witness_utxo.IsNull()) {
             script = input.witness_utxo.scriptPubKey;
         } else if (input.non_witness_utxo) {
-            if (txin.prevout.n >= input.non_witness_utxo->vout.size()) {
+            if (input.prev_out >= input.non_witness_utxo->vout.size()) {
                 return PSBTError::MISSING_INPUTS;
             }
-            script = input.non_witness_utxo->vout[txin.prevout.n].scriptPubKey;
+            script = input.non_witness_utxo->vout[input.prev_out].scriptPubKey;
         } else {
             // There's no UTXO so we can just skip this now
             continue;
         }
 
         std::unique_ptr<FlatSigningProvider> keys = std::make_unique<FlatSigningProvider>();
-        std::unique_ptr<FlatSigningProvider> script_keys = GetSigningProvider(script, /*include_private=*/sign);
+        std::unique_ptr<FlatSigningProvider> script_keys = GetSigningProvider(script, /*include_private=*/options.sign);
         if (script_keys) {
             keys->Merge(std::move(*script_keys));
         } else {
@@ -1377,13 +1375,13 @@ std::optional<PSBTError> DescriptorScriptPubKeyMan::FillPSBT(PartiallySignedTran
             }
         }
 
-        PSBTError res = SignPSBTInput(HidingSigningProvider(keys.get(), /*hide_secret=*/!sign, /*hide_origin=*/!bip32derivs), psbtx, i, &txdata, sighash_type, nullptr, finalize);
+        PSBTError res = SignPSBTInput(HidingSigningProvider(keys.get(), /*hide_secret=*/!options.sign, /*hide_origin=*/!options.bip32_derivs), psbtx, i, &txdata, options, /*out_sigdata=*/nullptr);
         if (res != PSBTError::OK && res != PSBTError::INCOMPLETE) {
             return res;
         }
 
         bool signed_one = PSBTInputSigned(input);
-        if (n_signed && (signed_one || !sign)) {
+        if (n_signed && (signed_one || !options.sign)) {
             // If sign is false, we assume that we _could_ sign if we get here. This
             // will never have false negatives; it is hard to tell under what i
             // circumstances it could have false positives.
@@ -1392,12 +1390,12 @@ std::optional<PSBTError> DescriptorScriptPubKeyMan::FillPSBT(PartiallySignedTran
     }
 
     // Fill in the bip32 keypaths and redeemscripts for the outputs so that hardware wallets can identify change
-    for (unsigned int i = 0; i < psbtx.tx->vout.size(); ++i) {
-        std::unique_ptr<SigningProvider> keys = GetSolvingProvider(psbtx.tx->vout.at(i).scriptPubKey);
+    for (unsigned int i = 0; i < psbtx.outputs.size(); ++i) {
+        std::unique_ptr<SigningProvider> keys = GetSolvingProvider(psbtx.outputs.at(i).script);
         if (!keys) {
             continue;
         }
-        UpdatePSBTOutput(HidingSigningProvider(keys.get(), /*hide_secret=*/true, /*hide_origin=*/!bip32derivs), psbtx, i);
+        UpdatePSBTOutput(HidingSigningProvider(keys.get(), /*hide_secret=*/true, /*hide_origin=*/!options.bip32_derivs), psbtx, i);
     }
 
     return {};
@@ -1441,14 +1439,14 @@ void DescriptorScriptPubKeyMan::SetCache(const DescriptorCache& cache)
         // Add all of the scriptPubKeys to the scriptPubKey set
         new_spks.insert(scripts_temp.begin(), scripts_temp.end());
         for (const CScript& script : scripts_temp) {
-            if (m_map_script_pub_keys.count(script) != 0) {
+            if (m_map_script_pub_keys.contains(script)) {
                 throw std::runtime_error(strprintf("Error: Already loaded script at index %d as being at index %d", i, m_map_script_pub_keys[script]));
             }
             m_map_script_pub_keys[script] = i;
         }
         for (const auto& pk_pair : out_keys.pubkeys) {
             const CPubKey& pubkey = pk_pair.second;
-            if (m_map_pubkeys.count(pubkey) != 0) {
+            if (m_map_pubkeys.contains(pubkey)) {
                 // We don't need to give an error here.
                 // It doesn't matter which of many valid indexes the pubkey has, we just need an index where we can derive it and its private key
                 continue;

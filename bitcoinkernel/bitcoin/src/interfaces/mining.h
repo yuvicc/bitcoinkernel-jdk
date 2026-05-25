@@ -34,7 +34,8 @@ public:
     virtual ~BlockTemplate() = default;
 
     virtual CBlockHeader getBlockHeader() = 0;
-    // Block contains a dummy coinbase transaction that should not be used.
+    // Block contains a dummy coinbase transaction that should not be used and
+    // it may not match a transaction constructed from getCoinbaseTx().
     virtual CBlock getBlock() = 0;
 
     // Fees per transaction, not including coinbase transaction.
@@ -42,9 +43,8 @@ public:
     // Sigop cost per transaction, not including coinbase transaction.
     virtual std::vector<int64_t> getTxSigops() = 0;
 
-    virtual CTransactionRef getCoinbaseTx() = 0;
-    virtual std::vector<unsigned char> getCoinbaseCommitment() = 0;
-    virtual int getWitnessCommitmentIndex() = 0;
+    /** Return fields needed to construct a coinbase transaction */
+    virtual node::CoinbaseTx getCoinbaseTx() = 0;
 
     /**
      * Compute merkle path to the coinbase transaction
@@ -65,6 +65,10 @@ public:
      * @note unlike the submitblock RPC, this method does NOT add the
      *       coinbase witness automatically.
      *
+     * @note for heights <= 16, the BIP34 height push in getCoinbaseTx().script_sig_prefix
+     *       is only one byte long, so the coinbase scriptSig needs at least
+     *       one additional byte of data to avoid bad-cb-length.
+     *
      * @returns if the block was processed, does not necessarily indicate validity.
      *
      * @note Returns true if the block is already known, which can happen if
@@ -84,7 +88,7 @@ public:
      * On testnet this will additionally return a template with difficulty 1 if
      * the tip is more than 20 minutes old.
      */
-    virtual std::unique_ptr<BlockTemplate> waitNext(const node::BlockWaitOptions options = {}) = 0;
+    virtual std::unique_ptr<BlockTemplate> waitNext(node::BlockWaitOptions options = {}) = 0;
 
     /**
      * Interrupts the current wait for the next block template.
@@ -117,20 +121,28 @@ public:
      * @param[in] timeout     how long to wait for a new tip (default is forever)
      *
      * @retval BlockRef hash and height of the current chain tip after this call.
-     * @retval std::nullopt if the node is shut down.
+     * @retval std::nullopt if the node is shut down or interrupt() is called.
      */
     virtual std::optional<BlockRef> waitTipChanged(uint256 current_tip, MillisecondsDouble timeout = MillisecondsDouble::max()) = 0;
 
    /**
      * Construct a new block template.
      *
-     * During node initialization, this will wait until the tip is connected.
-     *
      * @param[in] options options for creating the block
+     * @param[in] cooldown wait for tip to be connected and IBD to complete.
+     *                     If the best header is ahead of the tip, wait for the
+     *                     tip to catch up. It's recommended to disable this on
+     *                     regtest and signets with only one miner, as these
+     *                     could stall.
      * @retval BlockTemplate a block template.
-     * @retval std::nullptr if the node is shut down.
+     * @retval std::nullptr if the node is shut down or interrupt() is called.
      */
-    virtual std::unique_ptr<BlockTemplate> createNewBlock(const node::BlockCreateOptions& options = {}) = 0;
+    virtual std::unique_ptr<BlockTemplate> createNewBlock(const node::BlockCreateOptions& options = {}, bool cooldown = true) = 0;
+
+    /**
+     * Interrupts createNewBlock and waitTipChanged.
+     */
+    virtual void interrupt() = 0;
 
     /**
      * Checks if a given block is valid.
@@ -153,7 +165,11 @@ public:
 };
 
 //! Return implementation of Mining interface.
-std::unique_ptr<Mining> MakeMining(node::NodeContext& node);
+//!
+//! @param[in] wait_loaded waits for chainstate data to be loaded before
+//!                        returning. Used to prevent external clients from
+//!                        being able to crash the node during startup.
+std::unique_ptr<Mining> MakeMining(node::NodeContext& node, bool wait_loaded=true);
 
 } // namespace interfaces
 

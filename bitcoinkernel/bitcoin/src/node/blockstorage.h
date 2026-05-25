@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2011-present The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,16 +14,25 @@
 #include <kernel/cs_main.h>
 #include <kernel/messagestartchars.h>
 #include <primitives/block.h>
+#include <serialize.h>
 #include <streams.h>
 #include <sync.h>
 #include <uint256.h>
+// IWYU incorrectly suggests removing this header.
+// See https://github.com/include-what-you-use/include-what-you-use/issues/2014.
+#include <util/byte_units.h> // IWYU pragma: keep
+#include <util/expected.h>
 #include <util/fs.h>
 #include <util/hasher.h>
+#include <util/obfuscation.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iosfwd>
 #include <limits>
 #include <map>
 #include <memory>
@@ -110,11 +119,11 @@ using kernel::CBlockFileInfo;
 using kernel::BlockTreeDB;
 
 /** The pre-allocation chunk size for blk?????.dat files (since 0.8) */
-static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x1000000; // 16 MiB
+static const unsigned int BLOCKFILE_CHUNK_SIZE{16_MiB};
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
-static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
+static const unsigned int UNDOFILE_CHUNK_SIZE{1_MiB};
 /** The maximum size of a blk?????.dat file (since 0.8) */
-static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
+static const unsigned int MAX_BLOCKFILE_SIZE{128_MiB};
 
 /** Size of header written by WriteBlock before a serialized CBlock (8 bytes) */
 static constexpr uint32_t STORAGE_HEADER_BYTES{std::tuple_size_v<MessageStartChars> + sizeof(unsigned int)};
@@ -130,6 +139,7 @@ using BlockMap = std::unordered_map<uint256, CBlockIndex, BlockHasher>;
 
 struct CBlockIndexWorkComparator {
     bool operator()(const CBlockIndex* pa, const CBlockIndex* pb) const;
+    using is_transparent = void;
 };
 
 struct CBlockIndexHeightOnlyComparator {
@@ -138,7 +148,8 @@ struct CBlockIndexHeightOnlyComparator {
 };
 
 struct PruneLockInfo {
-    int height_first{std::numeric_limits<int>::max()}; //! Height of earliest block that should be kept and not pruned
+    /// Height of earliest block that should be kept and not pruned
+    int height_first{std::numeric_limits<int>::max()};
 };
 
 enum BlockfileType {
@@ -169,6 +180,10 @@ struct BlockfileCursor {
 
 std::ostream& operator<<(std::ostream& os, const BlockfileCursor& cursor);
 
+enum class ReadRawError {
+    IO,
+    BadPartRange,
+};
 
 /**
  * Maintains a tree of blocks (stored in `m_block_index`) which is consulted
@@ -218,8 +233,7 @@ private:
     void FindFilesToPruneManual(
         std::set<int>& setFilesToPrune,
         int nManualPruneHeight,
-        const Chainstate& chain,
-        ChainstateManager& chainman);
+        const Chainstate& chain);
 
     /**
      * Prune block and undo files (blk???.dat and rev???.dat) so that the disk space used is less than a user-defined target.
@@ -244,7 +258,6 @@ private:
         ChainstateManager& chainman);
 
     RecursiveMutex cs_LastBlockFile;
-    std::vector<CBlockFileInfo> m_blockfile_info;
 
     //! Since assumedvalid chainstates may be syncing a range of the chain that is very
     //! far away from the normal/background validation process, we should segment blockfiles
@@ -279,12 +292,6 @@ private:
 
     const Obfuscation m_obfuscation;
 
-    /** Dirty block index entries. */
-    std::set<CBlockIndex*> m_dirty_blockindex;
-
-    /** Dirty block file entries. */
-    std::set<int> m_dirty_fileinfo;
-
     /**
      * Map from external index name to oldest block that must not be pruned.
      *
@@ -300,8 +307,18 @@ private:
     const FlatFileSeq m_block_file_seq;
     const FlatFileSeq m_undo_file_seq;
 
+protected:
+    std::vector<CBlockFileInfo> m_blockfile_info;
+
+    /** Dirty block index entries. */
+    std::set<CBlockIndex*> m_dirty_blockindex;
+
+    /** Dirty block file entries. */
+    std::set<int> m_dirty_fileinfo;
+
 public:
     using Options = kernel::BlockManagerOpts;
+    using ReadRawBlockResult = util::Expected<std::vector<std::byte>, ReadRawError>;
 
     explicit BlockManager(const util::SignalInterrupt& interrupt, Options opts);
 
@@ -358,7 +375,7 @@ public:
     CBlockIndex* InsertBlockIndex(const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
     //! Mark one block file as pruned (modify associated database entries)
-    void PruneOneBlockFile(const int fileNumber) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+    void PruneOneBlockFile(int fileNumber) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
     CBlockIndex* LookupBlockIndex(const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     const CBlockIndex* LookupBlockIndex(const uint256& hash) const EXCLUSIVE_LOCKS_REQUIRED(cs_main);
@@ -399,10 +416,11 @@ public:
     /** Calculate the amount of disk space the block & undo files currently use */
     uint64_t CalculateCurrentUsage();
 
-    //! Check if all blocks in the [upper_block, lower_block] range have data available.
+    //! Check if all blocks in the [upper_block, lower_block] range have data available as
+    //! defined by the status mask.
     //! The caller is responsible for ensuring that lower_block is an ancestor of upper_block
     //! (part of the same chain).
-    bool CheckBlockDataAvailability(const CBlockIndex& upper_block, const CBlockIndex& lower_block) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    bool CheckBlockDataAvailability(const CBlockIndex& upper_block, const CBlockIndex& lower_block, BlockStatus block_status = BLOCK_HAVE_DATA) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
     /**
      * @brief Returns the earliest block with specified `status_mask` flags set after
@@ -441,6 +459,9 @@ public:
     //! Create or update a prune lock identified by its name
     void UpdatePruneLock(const std::string& name, const PruneLockInfo& lock_info) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
+    //! Delete a prune lock identified by its name. Returns true if the lock existed.
+    bool DeletePruneLock(const std::string& name) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+
     /** Open a block file (blk?????.dat) */
     AutoFile OpenBlockFile(const FlatFilePos& pos, bool fReadOnly) const;
 
@@ -455,7 +476,7 @@ public:
     /** Functions for disk access for blocks */
     bool ReadBlock(CBlock& block, const FlatFilePos& pos, const std::optional<uint256>& expected_hash) const;
     bool ReadBlock(CBlock& block, const CBlockIndex& index) const;
-    bool ReadRawBlock(std::vector<std::byte>& block, const FlatFilePos& pos) const;
+    ReadRawBlockResult ReadRawBlock(const FlatFilePos& pos, std::optional<std::pair<size_t, size_t>> block_part = std::nullopt) const;
 
     bool ReadBlockUndo(CBlockUndo& blockundo, const CBlockIndex& index) const;
 
