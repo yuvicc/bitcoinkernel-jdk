@@ -8,9 +8,18 @@ import java.util.NoSuchElementException;
 import static org.bitcoinkernel.jextract.bitcoinkernel_h.*;
 import static org.bitcoinkernel.Blocks.*;
 import static org.bitcoinkernel.ContextManager.*;
+import static org.bitcoinkernel.KernelTypes.*;
 
 
 public class Chainstate {
+
+    static {
+        try {
+            System.loadLibrary("bitcoinkernel");
+        } catch (UnsatisfiedLinkError e) {
+            // This can happen if the library is not in the search path.
+        }
+    }
 
     public enum ChainType {
         MAINNET(0),
@@ -230,6 +239,17 @@ public class Chainstate {
 
                 return result == 0;
             }
+        }
+
+        public BlockValidationState ProcessBlockHeader(BlockHeader header) {
+            checkClosed();
+            header.checkClosed();
+
+            MemorySegment statePtr = btck_chainstate_manager_process_block_header(inner, header.getInner());
+            if (isNull(statePtr)) {
+                return null;
+            }
+            return new BlockValidationState(statePtr);
         }
 
         public Chain getChain() {

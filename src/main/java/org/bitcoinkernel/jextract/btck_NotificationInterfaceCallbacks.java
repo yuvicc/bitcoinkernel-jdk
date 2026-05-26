@@ -43,7 +43,7 @@ public class btck_NotificationInterfaceCallbacks {
         bitcoinkernel_h.C_POINTER.withName("warning_unset"),
         bitcoinkernel_h.C_POINTER.withName("flush_error"),
         bitcoinkernel_h.C_POINTER.withName("fatal_error")
-    ).withName("$anon$378:9");
+    ).withName("$anon$457:9");
 
     /**
      * The layout of this struct
@@ -64,7 +64,7 @@ public class btck_NotificationInterfaceCallbacks {
         return user_data$LAYOUT;
     }
 
-    private static final long user_data$OFFSET = $LAYOUT.byteOffset(groupElement("user_data"));
+    private static final long user_data$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -108,7 +108,7 @@ public class btck_NotificationInterfaceCallbacks {
         return user_data_destroy$LAYOUT;
     }
 
-    private static final long user_data_destroy$OFFSET = $LAYOUT.byteOffset(groupElement("user_data_destroy"));
+    private static final long user_data_destroy$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -152,7 +152,7 @@ public class btck_NotificationInterfaceCallbacks {
         return block_tip$LAYOUT;
     }
 
-    private static final long block_tip$OFFSET = $LAYOUT.byteOffset(groupElement("block_tip"));
+    private static final long block_tip$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -196,7 +196,7 @@ public class btck_NotificationInterfaceCallbacks {
         return header_tip$LAYOUT;
     }
 
-    private static final long header_tip$OFFSET = $LAYOUT.byteOffset(groupElement("header_tip"));
+    private static final long header_tip$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -240,7 +240,7 @@ public class btck_NotificationInterfaceCallbacks {
         return progress$LAYOUT;
     }
 
-    private static final long progress$OFFSET = $LAYOUT.byteOffset(groupElement("progress"));
+    private static final long progress$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -284,7 +284,7 @@ public class btck_NotificationInterfaceCallbacks {
         return warning_set$LAYOUT;
     }
 
-    private static final long warning_set$OFFSET = $LAYOUT.byteOffset(groupElement("warning_set"));
+    private static final long warning_set$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -328,7 +328,7 @@ public class btck_NotificationInterfaceCallbacks {
         return warning_unset$LAYOUT;
     }
 
-    private static final long warning_unset$OFFSET = $LAYOUT.byteOffset(groupElement("warning_unset"));
+    private static final long warning_unset$OFFSET = 48;
 
     /**
      * Offset for field:
@@ -372,7 +372,7 @@ public class btck_NotificationInterfaceCallbacks {
         return flush_error$LAYOUT;
     }
 
-    private static final long flush_error$OFFSET = $LAYOUT.byteOffset(groupElement("flush_error"));
+    private static final long flush_error$OFFSET = 56;
 
     /**
      * Offset for field:
@@ -416,7 +416,7 @@ public class btck_NotificationInterfaceCallbacks {
         return fatal_error$LAYOUT;
     }
 
-    private static final long fatal_error$OFFSET = $LAYOUT.byteOffset(groupElement("fatal_error"));
+    private static final long fatal_error$OFFSET = 64;
 
     /**
      * Offset for field:

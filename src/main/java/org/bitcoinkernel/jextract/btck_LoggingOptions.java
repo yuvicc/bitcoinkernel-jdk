@@ -35,7 +35,7 @@ public class btck_LoggingOptions {
         bitcoinkernel_h.C_INT.withName("log_threadnames"),
         bitcoinkernel_h.C_INT.withName("log_sourcelocations"),
         bitcoinkernel_h.C_INT.withName("always_print_category_levels")
-    ).withName("$anon$421:9");
+    ).withName("$anon$500:9");
 
     /**
      * The layout of this struct
@@ -56,7 +56,7 @@ public class btck_LoggingOptions {
         return log_timestamps$LAYOUT;
     }
 
-    private static final long log_timestamps$OFFSET = $LAYOUT.byteOffset(groupElement("log_timestamps"));
+    private static final long log_timestamps$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -100,7 +100,7 @@ public class btck_LoggingOptions {
         return log_time_micros$LAYOUT;
     }
 
-    private static final long log_time_micros$OFFSET = $LAYOUT.byteOffset(groupElement("log_time_micros"));
+    private static final long log_time_micros$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -144,7 +144,7 @@ public class btck_LoggingOptions {
         return log_threadnames$LAYOUT;
     }
 
-    private static final long log_threadnames$OFFSET = $LAYOUT.byteOffset(groupElement("log_threadnames"));
+    private static final long log_threadnames$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -188,7 +188,7 @@ public class btck_LoggingOptions {
         return log_sourcelocations$LAYOUT;
     }
 
-    private static final long log_sourcelocations$OFFSET = $LAYOUT.byteOffset(groupElement("log_sourcelocations"));
+    private static final long log_sourcelocations$OFFSET = 12;
 
     /**
      * Offset for field:
@@ -232,7 +232,7 @@ public class btck_LoggingOptions {
         return always_print_category_levels$LAYOUT;
     }
 
-    private static final long always_print_category_levels$OFFSET = $LAYOUT.byteOffset(groupElement("always_print_category_levels"));
+    private static final long always_print_category_levels$OFFSET = 16;
 
     /**
      * Offset for field:

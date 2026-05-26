@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_NotifyWarningUnset)(void *, btck_Warning)
  * }
  */
-public final class btck_NotifyWarningUnset {
+public class btck_NotifyWarningUnset {
 
-    private btck_NotifyWarningUnset() {
+    btck_NotifyWarningUnset() {
         // Should not be called directly
     }
 
@@ -57,11 +57,9 @@ public final class btck_NotifyWarningUnset {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data, byte warning) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data, byte warning) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data, warning);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

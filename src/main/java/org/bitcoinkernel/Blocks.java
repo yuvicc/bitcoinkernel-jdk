@@ -7,15 +7,16 @@ import java.util.NoSuchElementException;
 import static org.bitcoinkernel.Transactions.*;
 
 import static org.bitcoinkernel.jextract.bitcoinkernel_h.*;
+import static org.bitcoinkernel.KernelTypes.*;
 
 public class Blocks {
 
-    /**
-     * Helper method to check if a MemorySegment is null.
-     * Handles both MemorySegment.NULL and address == 0 cases.
-     */
-    private static boolean isNull(MemorySegment segment) {
-        return segment == MemorySegment.NULL || segment.address() == 0;
+    static {
+        try {
+            System.loadLibrary("bitcoinkernel");
+        } catch (UnsatisfiedLinkError e) {
+            System.err.println("Failed to load libbitcoinkernel: " + e.getMessage());
+        }
     }
 
     public enum ValidationMode {
@@ -204,7 +205,7 @@ public class Blocks {
 
         @Override
         public void close() throws Exception {
-            if (inner != MemorySegment.NULL) {
+            if (inner != MemorySegment.NULL && ownsMemory) {
                 btck_block_hash_destroy(inner);
                 inner = MemorySegment.NULL;
             }
@@ -241,6 +242,14 @@ public class Blocks {
         public BlockHash getBlockHash() {
             MemorySegment hashPtr = btck_block_tree_entry_get_block_hash(inner);
             return new BlockHash(hashPtr, false);
+        }
+
+        public BlockHeader getBlockHeader() {
+            MemorySegment headerPtr = btck_block_tree_entry_get_block_header(inner);
+            if (isNull(headerPtr)) {
+                return null;
+            }
+            return new BlockHeader(headerPtr, true);
         }
 
         MemorySegment getInner() {
@@ -424,24 +433,99 @@ public class Blocks {
     public static class BlockHeader implements AutoCloseable {
         private MemorySegment inner;
         private final Arena arena;
+        private final boolean ownsMemory;
 
-        public BlockHeader(byte[] raw_block_header) {
+        public BlockHeader(byte[] raw_block_header) throws KernelTypes.KernelException {
+            if (raw_block_header.length != 80) {
+                throw new IllegalArgumentException("Block header must be 80 bytes");
+            }
             this.arena = Arena.ofConfined();
             MemorySegment headerSegment = arena.allocateFrom(ValueLayout.JAVA_BYTE, raw_block_header);
-            this.inner = btck_block_header_create();
+            this.inner = btck_block_header_create(headerSegment, headerSegment.byteSize());
             if (isNull(inner)) {
                 arena.close();
-                throw new KernelTypes.KernelException("Failed to create block");
+                throw new KernelTypes.KernelException("Failed to create block header");
             }
+            this.ownsMemory = true;
         }
 
         BlockHeader(MemorySegment inner) {
+            this(inner, true);
+        }
+
+        BlockHeader(MemorySegment inner, boolean ownsMemory) {
             this.inner = inner;
+            this.arena = null;
+            this.ownsMemory = ownsMemory;
+        }
+
+        public BlockHash getHash() {
+            checkClosed();
+            MemorySegment hashPtr = btck_block_header_get_hash(inner);
+            return new BlockHash(hashPtr, true);
+        }
+
+        public BlockHash getPrevHash() {
+            checkClosed();
+            MemorySegment hashPtr = btck_block_header_get_prev_hash(inner);
+            // Returns unowned pointer
+            return new BlockHash(hashPtr, false);
+        }
+
+        public int getTimestamp() {
+            checkClosed();
+            return btck_block_header_get_timestamp(inner);
+        }
+
+        public int getBits() {
+            checkClosed();
+            return btck_block_header_get_bits(inner);
+        }
+
+        public int getVersion() {
+            checkClosed();
+            return btck_block_header_get_version(inner);
+        }
+
+        public int getNonce() {
+            checkClosed();
+            return btck_block_header_get_nonce(inner);
+        }
+
+        public byte[] toBytes() {
+            checkClosed();
+            try (var tempArena = Arena.ofConfined()) {
+                MemorySegment output = tempArena.allocate(80);
+                int result = btck_block_header_to_bytes(inner, output);
+                if (result != 0) {
+                    throw new RuntimeException("Failed to serialize block header");
+                }
+                return output.toArray(ValueLayout.JAVA_BYTE);
+            }
+        }
+
+        public BlockHeader copy() {
+            checkClosed();
+            MemorySegment copied = btck_block_header_copy(inner);
+            if (isNull(copied)) {
+                throw new RuntimeException("Failed to copy BlockHeader");
+            }
+            return new BlockHeader(copied, true);
+        }
+
+        MemorySegment getInner() {
+            return inner;
+        }
+
+        public void checkClosed() {
+            if (isNull(inner)) {
+                throw new IllegalStateException("Block header has been closed");
+            }
         }
 
         @Override
         public void close() {
-            if (inner != MemorySegment.NULL) {
+            if (!isNull(inner) && ownsMemory) {
                 btck_block_header_destroy(inner);
                 inner = MemorySegment.NULL;
             }

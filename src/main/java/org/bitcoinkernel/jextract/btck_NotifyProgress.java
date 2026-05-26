@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_NotifyProgress)(void *, const char *, size_t, int, int)
  * }
  */
-public final class btck_NotifyProgress {
+public class btck_NotifyProgress {
 
-    private btck_NotifyProgress() {
+    btck_NotifyProgress() {
         // Should not be called directly
     }
 
@@ -60,11 +60,9 @@ public final class btck_NotifyProgress {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data, MemorySegment title, long title_len, int progress_percent, int resume_possible) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data, MemorySegment title, long title_len, int progress_percent, int resume_possible) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data, title, title_len, progress_percent, resume_possible);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_NotifyBlockTip)(void *, btck_SynchronizationState, const btck_BlockTreeEntry *, double)
  * }
  */
-public final class btck_NotifyBlockTip {
+public class btck_NotifyBlockTip {
 
-    private btck_NotifyBlockTip() {
+    btck_NotifyBlockTip() {
         // Should not be called directly
     }
 
@@ -59,11 +59,9 @@ public final class btck_NotifyBlockTip {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data, byte state, MemorySegment entry, double verification_progress) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data, byte state, MemorySegment entry, double verification_progress) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data, state, entry, verification_progress);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

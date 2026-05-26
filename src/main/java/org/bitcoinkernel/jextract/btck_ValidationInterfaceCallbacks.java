@@ -37,7 +37,7 @@ public class btck_ValidationInterfaceCallbacks {
         bitcoinkernel_h.C_POINTER.withName("pow_valid_block"),
         bitcoinkernel_h.C_POINTER.withName("block_connected"),
         bitcoinkernel_h.C_POINTER.withName("block_disconnected")
-    ).withName("$anon$353:9");
+    ).withName("$anon$432:9");
 
     /**
      * The layout of this struct
@@ -58,7 +58,7 @@ public class btck_ValidationInterfaceCallbacks {
         return user_data$LAYOUT;
     }
 
-    private static final long user_data$OFFSET = $LAYOUT.byteOffset(groupElement("user_data"));
+    private static final long user_data$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -102,7 +102,7 @@ public class btck_ValidationInterfaceCallbacks {
         return user_data_destroy$LAYOUT;
     }
 
-    private static final long user_data_destroy$OFFSET = $LAYOUT.byteOffset(groupElement("user_data_destroy"));
+    private static final long user_data_destroy$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -146,7 +146,7 @@ public class btck_ValidationInterfaceCallbacks {
         return block_checked$LAYOUT;
     }
 
-    private static final long block_checked$OFFSET = $LAYOUT.byteOffset(groupElement("block_checked"));
+    private static final long block_checked$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -190,7 +190,7 @@ public class btck_ValidationInterfaceCallbacks {
         return pow_valid_block$LAYOUT;
     }
 
-    private static final long pow_valid_block$OFFSET = $LAYOUT.byteOffset(groupElement("pow_valid_block"));
+    private static final long pow_valid_block$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -234,7 +234,7 @@ public class btck_ValidationInterfaceCallbacks {
         return block_connected$LAYOUT;
     }
 
-    private static final long block_connected$OFFSET = $LAYOUT.byteOffset(groupElement("block_connected"));
+    private static final long block_connected$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -278,7 +278,7 @@ public class btck_ValidationInterfaceCallbacks {
         return block_disconnected$LAYOUT;
     }
 
-    private static final long block_disconnected$OFFSET = $LAYOUT.byteOffset(groupElement("block_disconnected"));
+    private static final long block_disconnected$OFFSET = 40;
 
     /**
      * Offset for field:

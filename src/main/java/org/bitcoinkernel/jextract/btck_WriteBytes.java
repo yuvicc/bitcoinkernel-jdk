@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef int (*btck_WriteBytes)(const void *, size_t, void *)
  * }
  */
-public final class btck_WriteBytes {
+public class btck_WriteBytes {
 
-    private btck_WriteBytes() {
+    btck_WriteBytes() {
         // Should not be called directly
     }
 
@@ -59,11 +59,9 @@ public final class btck_WriteBytes {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static int invoke(MemorySegment funcPtr, MemorySegment bytes, long size, MemorySegment userdata) {
+    public static int invoke(MemorySegment funcPtr,MemorySegment bytes, long size, MemorySegment userdata) {
         try {
             return (int) DOWN$MH.invokeExact(funcPtr, bytes, size, userdata);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }
