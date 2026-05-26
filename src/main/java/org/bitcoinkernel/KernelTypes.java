@@ -127,6 +127,18 @@ public class KernelTypes {
         }
     }
 
+    // ===== Block Check Flags =====
+    public static class BlockCheckFlags {
+        public static final int BASE = btck_BlockCheckFlags_BASE();
+        public static final int POW = btck_BlockCheckFlags_POW();
+        public static final int MERKLE = btck_BlockCheckFlags_MERKLE();
+        public static final int ALL = btck_BlockCheckFlags_ALL();
+
+        private BlockCheckFlags() {
+            // Utility class, prevent instantiation
+        }
+    }
+
     // ===== Kernel Exception =====
     public static class KernelException extends Exception {
         public enum ScriptVerifyError {

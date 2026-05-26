@@ -45,8 +45,29 @@ public class Blocks {
     }
 
     // ===== Block Validation State =====
-    public static class BlockValidationState {
-        private final MemorySegment inner;
+    public static class BlockValidationState implements AutoCloseable {
+        private MemorySegment inner;
+        private final boolean ownsMemory;
+
+        public BlockValidationState() {
+            this.inner = btck_block_validation_state_create.makeInvoker().apply();
+            if (isNull(inner)) {
+                throw new RuntimeException("Failed to create Block Validation State");
+            }
+            this.ownsMemory = true;
+        }
+
+        BlockValidationState(MemorySegment inner) {
+            this(inner, false);
+        }
+
+        BlockValidationState(MemorySegment inner, boolean ownsMemory) {
+            if (isNull(inner)) {
+                throw new IllegalArgumentException("Block Validation State cannot be null");
+            }
+            this.inner = inner;
+            this.ownsMemory = ownsMemory;
+        }
 
         public enum BlockValidationResult {
             UNSET(0),
@@ -77,13 +98,6 @@ public class Blocks {
                 }
                 throw new IllegalArgumentException("Invalid BlockValidationResult: " + value);
             }
-        }
-
-        BlockValidationState(MemorySegment inner) {
-            if (isNull(inner)) {
-                throw new IllegalArgumentException("Block Validation State cannot be null");
-            }
-            this.inner = inner;
         }
 
         public ValidationMode getValidationMode() {
@@ -125,6 +139,14 @@ public class Blocks {
             return String.format("BlockValidationState{mode=%s, result=%s}",
                 getValidationMode(),
                 getBlockValidationResult());
+        }
+
+        @Override
+        public void close() {
+            if (!isNull(inner) && ownsMemory) {
+                btck_block_validation_state_destroy(inner);
+                inner = MemorySegment.NULL;
+            }
         }
 
         MemorySegment getInner() {
@@ -293,6 +315,11 @@ public class Blocks {
             }
             MemorySegment txPtr = btck_block_get_transaction_at(inner, index);
             return new Transaction(txPtr);
+        }
+
+        public boolean check(Chainstate.ConsensusParams consensusParams, int flags, BlockValidationState state) {
+            checkClosed();
+            return btck_block_check(inner, consensusParams.getInner(), flags, state.getInner()) != 0;
         }
 
         public byte[] toBytes() {
