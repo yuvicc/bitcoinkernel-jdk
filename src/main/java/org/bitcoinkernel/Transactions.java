@@ -9,6 +9,14 @@ import static org.bitcoinkernel.KernelData.*;
 
 public class Transactions {
 
+    static {
+        try {
+            System.loadLibrary("bitcoinkernel");
+        } catch (UnsatisfiedLinkError e) {
+            // This can happen if the library is not in the search path.
+        }
+    }
+
     // ===== Transaction =====
     public static class Transaction implements AutoCloseable {
         private MemorySegment inner;

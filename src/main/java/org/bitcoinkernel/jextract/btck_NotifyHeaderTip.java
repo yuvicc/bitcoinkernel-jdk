@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_NotifyHeaderTip)(void *, btck_SynchronizationState, int64_t, int64_t, int)
  * }
  */
-public final class btck_NotifyHeaderTip {
+public class btck_NotifyHeaderTip {
 
-    private btck_NotifyHeaderTip() {
+    btck_NotifyHeaderTip() {
         // Should not be called directly
     }
 
@@ -33,8 +33,8 @@ public final class btck_NotifyHeaderTip {
     private static final FunctionDescriptor $DESC = FunctionDescriptor.ofVoid(
         bitcoinkernel_h.C_POINTER,
         bitcoinkernel_h.C_CHAR,
-        bitcoinkernel_h.C_LONG_LONG,
-        bitcoinkernel_h.C_LONG_LONG,
+        bitcoinkernel_h.C_LONG,
+        bitcoinkernel_h.C_LONG,
         bitcoinkernel_h.C_INT
     );
 
@@ -60,11 +60,9 @@ public final class btck_NotifyHeaderTip {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data, byte state, long height, long timestamp, int presync) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data, byte state, long height, long timestamp, int presync) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data, state, height, timestamp, presync);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

@@ -5,7 +5,7 @@
 # - Bitcoin Core has been built with BUILD_KERNEL_LIB=ON
 # - The bitcoinkernel.h header is available at bitcoinkernel/bitcoin/src/kernel/bitcoinkernel.h
 
-JEXTRACT="$HOME/.jextract/jextract-25/bin/jextract"
+JEXTRACT="/home/yuvic/jextract-22/jextract-22/bin/jextract"
 BITCOIN_DIR="./bitcoinkernel/bitcoin"
 HEADER_FILE="$BITCOIN_DIR/src/kernel/bitcoinkernel.h"
 BUILD_DIR="$BITCOIN_DIR/build"

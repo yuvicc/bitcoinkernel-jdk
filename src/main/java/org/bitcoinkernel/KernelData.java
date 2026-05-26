@@ -4,6 +4,7 @@ import java.lang.foreign.*;
 import java.util.Arrays;
 
 import org.bitcoinkernel.KernelTypes;
+import static org.bitcoinkernel.KernelTypes.isNull;
 import static org.bitcoinkernel.jextract.bitcoinkernel_h.*;
 import static org.bitcoinkernel.Transactions.*;
 
@@ -73,16 +74,24 @@ public class KernelData {
 
                 MemorySegment statusPtr = arena.allocate(ValueLayout.JAVA_BYTE);
 
+                MemorySegment precomputedData = MemorySegment.NULL;
+                if (numOutputs > 0) {
+                    precomputedData = btck_precomputed_transaction_data_create(txTo.getInner(), outputPtrs, numOutputs);
+                }
+
                 int result = btck_script_pubkey_verify(
                     inner,
                     amount,
                     txTo.getInner(),
-                    outputPtrs,
-                    numOutputs,
+                    precomputedData,
                     inputIndex,
                     flags,
                     statusPtr
                 );
+
+                if (!isNull(precomputedData)) {
+                    btck_precomputed_transaction_data_destroy(precomputedData);
+                }
 
                 // Note: return value 1 = success, 0 = error
                 if (result == 0) {

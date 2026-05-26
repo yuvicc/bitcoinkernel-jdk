@@ -12,34 +12,215 @@ import java.util.stream.*;
 import static java.lang.foreign.ValueLayout.*;
 import static java.lang.foreign.MemoryLayout.PathElement.*;
 
-public class bitcoinkernel_h extends bitcoinkernel_h$shared {
+public class bitcoinkernel_h {
+
+    static {
+        try {
+            System.loadLibrary("bitcoinkernel");
+        } catch (UnsatisfiedLinkError e) {
+            // This is expected if the library is not in the search path during generation
+            // or if the user wants to load it manually.
+        }
+    }
 
     bitcoinkernel_h() {
         // Should not be called directly
     }
 
     static final Arena LIBRARY_ARENA = Arena.ofAuto();
+    static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
 
-    static final SymbolLookup SYMBOL_LOOKUP;
-
-    static {
-        // Load the bitcoinkernel library
-        SymbolLookup lookup = null;
-        try {
-            System.loadLibrary("bitcoinkernel");
-            lookup = SymbolLookup.loaderLookup();
-        } catch (UnsatisfiedLinkError e) {
-            // Fall back to default lookup (LD_LIBRARY_PATH)
-            System.err.println("Warning: Could not load bitcoinkernel via System.loadLibrary, trying LD_LIBRARY_PATH");
-        }
-
-        if (lookup == null) {
-            lookup = Linker.nativeLinker().defaultLookup();
-        }
-
-        SYMBOL_LOOKUP = lookup;
+    static void traceDowncall(String name, Object... args) {
+         String traceArgs = Arrays.stream(args)
+                       .map(Object::toString)
+                       .collect(Collectors.joining(", "));
+         System.out.printf("%s(%s)\n", name, traceArgs);
     }
 
+    static MemorySegment findOrThrow(String symbol) {
+        return SYMBOL_LOOKUP.find(symbol)
+            .orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + symbol));
+    }
+
+    static MethodHandle upcallHandle(Class<?> fi, String name, FunctionDescriptor fdesc) {
+        try {
+            return MethodHandles.lookup().findVirtual(fi, name, fdesc.toMethodType());
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static MemoryLayout align(MemoryLayout layout, long align) {
+        return switch (layout) {
+            case PaddingLayout p -> p;
+            case ValueLayout v -> v.withByteAlignment(align);
+            case GroupLayout g -> {
+                MemoryLayout[] alignedMembers = g.memberLayouts().stream()
+                        .map(m -> align(m, align)).toArray(MemoryLayout[]::new);
+                yield g instanceof StructLayout ?
+                        MemoryLayout.structLayout(alignedMembers) : MemoryLayout.unionLayout(alignedMembers);
+            }
+            case SequenceLayout s -> MemoryLayout.sequenceLayout(s.elementCount(), align(s.elementLayout(), align));
+        };
+    }
+
+    static final SymbolLookup SYMBOL_LOOKUP = SymbolLookup.loaderLookup()
+            .or(Linker.nativeLinker().defaultLookup());
+
+    public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte C_CHAR = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfShort C_SHORT = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt C_INT = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong C_LONG_LONG = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat C_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble C_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final AddressLayout C_POINTER = ValueLayout.ADDRESS
+            .withTargetLayout(MemoryLayout.sequenceLayout(java.lang.Long.MAX_VALUE, JAVA_BYTE));
+    public static final ValueLayout.OfLong C_LONG = ValueLayout.JAVA_LONG;
+    private static final int _STDINT_H = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _STDINT_H 1
+     * }
+     */
+    public static int _STDINT_H() {
+        return _STDINT_H;
+    }
+    private static final int _FEATURES_H = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _FEATURES_H 1
+     * }
+     */
+    public static int _FEATURES_H() {
+        return _FEATURES_H;
+    }
+    private static final int _DEFAULT_SOURCE = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _DEFAULT_SOURCE 1
+     * }
+     */
+    public static int _DEFAULT_SOURCE() {
+        return _DEFAULT_SOURCE;
+    }
+    private static final int __GLIBC_USE_ISOC2X = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * #define __GLIBC_USE_ISOC2X 0
+     * }
+     */
+    public static int __GLIBC_USE_ISOC2X() {
+        return __GLIBC_USE_ISOC2X;
+    }
+    private static final int __USE_ISOC11 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_ISOC11 1
+     * }
+     */
+    public static int __USE_ISOC11() {
+        return __USE_ISOC11;
+    }
+    private static final int __USE_ISOC99 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_ISOC99 1
+     * }
+     */
+    public static int __USE_ISOC99() {
+        return __USE_ISOC99;
+    }
+    private static final int __USE_ISOC95 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_ISOC95 1
+     * }
+     */
+    public static int __USE_ISOC95() {
+        return __USE_ISOC95;
+    }
+    private static final int __USE_POSIX_IMPLICITLY = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_POSIX_IMPLICITLY 1
+     * }
+     */
+    public static int __USE_POSIX_IMPLICITLY() {
+        return __USE_POSIX_IMPLICITLY;
+    }
+    private static final int _POSIX_SOURCE = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _POSIX_SOURCE 1
+     * }
+     */
+    public static int _POSIX_SOURCE() {
+        return _POSIX_SOURCE;
+    }
+    private static final int __USE_POSIX = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_POSIX 1
+     * }
+     */
+    public static int __USE_POSIX() {
+        return __USE_POSIX;
+    }
+    private static final int __USE_POSIX2 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_POSIX2 1
+     * }
+     */
+    public static int __USE_POSIX2() {
+        return __USE_POSIX2;
+    }
+    private static final int __USE_POSIX199309 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_POSIX199309 1
+     * }
+     */
+    public static int __USE_POSIX199309() {
+        return __USE_POSIX199309;
+    }
+    private static final int __USE_POSIX199506 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_POSIX199506 1
+     * }
+     */
+    public static int __USE_POSIX199506() {
+        return __USE_POSIX199506;
+    }
+    private static final int __USE_XOPEN2K = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_XOPEN2K 1
+     * }
+     */
+    public static int __USE_XOPEN2K() {
+        return __USE_XOPEN2K;
+    }
+    private static final int __USE_XOPEN2K8 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __USE_XOPEN2K8 1
+     * }
+     */
+    public static int __USE_XOPEN2K8() {
+        return __USE_XOPEN2K8;
+    }
+    private static final int _ATFILE_SOURCE = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _ATFILE_SOURCE 1
+     * }
+     */
+    public static int _ATFILE_SOURCE() {
+        return _ATFILE_SOURCE;
+    }
     private static final int __WORDSIZE = (int)64L;
     /**
      * {@snippet lang=c :
@@ -49,284 +230,347 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static int __WORDSIZE() {
         return __WORDSIZE;
     }
-    private static final int __has_safe_buffers = (int)0L;
+    private static final int __WORDSIZE_TIME64_COMPAT32 = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __has_safe_buffers 0
+     * #define __WORDSIZE_TIME64_COMPAT32 1
      * }
      */
-    public static int __has_safe_buffers() {
-        return __has_safe_buffers;
+    public static int __WORDSIZE_TIME64_COMPAT32() {
+        return __WORDSIZE_TIME64_COMPAT32;
     }
-    private static final int __DARWIN_ONLY_64_BIT_INO_T = (int)1L;
+    private static final int __SYSCALL_WORDSIZE = (int)64L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_ONLY_64_BIT_INO_T 1
+     * #define __SYSCALL_WORDSIZE 64
      * }
      */
-    public static int __DARWIN_ONLY_64_BIT_INO_T() {
-        return __DARWIN_ONLY_64_BIT_INO_T;
+    public static int __SYSCALL_WORDSIZE() {
+        return __SYSCALL_WORDSIZE;
     }
-    private static final int __DARWIN_ONLY_UNIX_CONFORMANCE = (int)1L;
+    private static final int __USE_MISC = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_ONLY_UNIX_CONFORMANCE 1
+     * #define __USE_MISC 1
      * }
      */
-    public static int __DARWIN_ONLY_UNIX_CONFORMANCE() {
-        return __DARWIN_ONLY_UNIX_CONFORMANCE;
+    public static int __USE_MISC() {
+        return __USE_MISC;
     }
-    private static final int __DARWIN_ONLY_VERS_1050 = (int)1L;
+    private static final int __USE_ATFILE = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_ONLY_VERS_1050 1
+     * #define __USE_ATFILE 1
      * }
      */
-    public static int __DARWIN_ONLY_VERS_1050() {
-        return __DARWIN_ONLY_VERS_1050;
+    public static int __USE_ATFILE() {
+        return __USE_ATFILE;
     }
-    private static final int __DARWIN_UNIX03 = (int)1L;
+    private static final int __USE_FORTIFY_LEVEL = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_UNIX03 1
+     * #define __USE_FORTIFY_LEVEL 0
      * }
      */
-    public static int __DARWIN_UNIX03() {
-        return __DARWIN_UNIX03;
+    public static int __USE_FORTIFY_LEVEL() {
+        return __USE_FORTIFY_LEVEL;
     }
-    private static final int __DARWIN_64_BIT_INO_T = (int)1L;
+    private static final int __GLIBC_USE_DEPRECATED_GETS = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_64_BIT_INO_T 1
+     * #define __GLIBC_USE_DEPRECATED_GETS 0
      * }
      */
-    public static int __DARWIN_64_BIT_INO_T() {
-        return __DARWIN_64_BIT_INO_T;
+    public static int __GLIBC_USE_DEPRECATED_GETS() {
+        return __GLIBC_USE_DEPRECATED_GETS;
     }
-    private static final int __DARWIN_VERS_1050 = (int)1L;
+    private static final int __GLIBC_USE_DEPRECATED_SCANF = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_VERS_1050 1
+     * #define __GLIBC_USE_DEPRECATED_SCANF 0
      * }
      */
-    public static int __DARWIN_VERS_1050() {
-        return __DARWIN_VERS_1050;
+    public static int __GLIBC_USE_DEPRECATED_SCANF() {
+        return __GLIBC_USE_DEPRECATED_SCANF;
     }
-    private static final int __DARWIN_NON_CANCELABLE = (int)0L;
+    private static final int __GLIBC_USE_C2X_STRTOL = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_NON_CANCELABLE 0
+     * #define __GLIBC_USE_C2X_STRTOL 0
      * }
      */
-    public static int __DARWIN_NON_CANCELABLE() {
-        return __DARWIN_NON_CANCELABLE;
+    public static int __GLIBC_USE_C2X_STRTOL() {
+        return __GLIBC_USE_C2X_STRTOL;
     }
-    private static final int __STDC_WANT_LIB_EXT1__ = (int)1L;
+    private static final int _STDC_PREDEF_H = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __STDC_WANT_LIB_EXT1__ 1
+     * #define _STDC_PREDEF_H 1
      * }
      */
-    public static int __STDC_WANT_LIB_EXT1__() {
-        return __STDC_WANT_LIB_EXT1__;
+    public static int _STDC_PREDEF_H() {
+        return _STDC_PREDEF_H;
     }
-    private static final int __DARWIN_NO_LONG_LONG = (int)0L;
+    private static final int __STDC_IEC_559__ = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_NO_LONG_LONG 0
+     * #define __STDC_IEC_559__ 1
      * }
      */
-    public static int __DARWIN_NO_LONG_LONG() {
-        return __DARWIN_NO_LONG_LONG;
+    public static int __STDC_IEC_559__() {
+        return __STDC_IEC_559__;
     }
-    private static final int _DARWIN_FEATURE_64_BIT_INODE = (int)1L;
+    private static final int __STDC_IEC_559_COMPLEX__ = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define _DARWIN_FEATURE_64_BIT_INODE 1
+     * #define __STDC_IEC_559_COMPLEX__ 1
      * }
      */
-    public static int _DARWIN_FEATURE_64_BIT_INODE() {
-        return _DARWIN_FEATURE_64_BIT_INODE;
+    public static int __STDC_IEC_559_COMPLEX__() {
+        return __STDC_IEC_559_COMPLEX__;
     }
-    private static final int _DARWIN_FEATURE_ONLY_64_BIT_INODE = (int)1L;
+    private static final int __GNU_LIBRARY__ = (int)6L;
     /**
      * {@snippet lang=c :
-     * #define _DARWIN_FEATURE_ONLY_64_BIT_INODE 1
+     * #define __GNU_LIBRARY__ 6
      * }
      */
-    public static int _DARWIN_FEATURE_ONLY_64_BIT_INODE() {
-        return _DARWIN_FEATURE_ONLY_64_BIT_INODE;
+    public static int __GNU_LIBRARY__() {
+        return __GNU_LIBRARY__;
     }
-    private static final int _DARWIN_FEATURE_ONLY_VERS_1050 = (int)1L;
+    private static final int __GLIBC__ = (int)2L;
     /**
      * {@snippet lang=c :
-     * #define _DARWIN_FEATURE_ONLY_VERS_1050 1
+     * #define __GLIBC__ 2
      * }
      */
-    public static int _DARWIN_FEATURE_ONLY_VERS_1050() {
-        return _DARWIN_FEATURE_ONLY_VERS_1050;
+    public static int __GLIBC__() {
+        return __GLIBC__;
     }
-    private static final int _DARWIN_FEATURE_ONLY_UNIX_CONFORMANCE = (int)1L;
+    private static final int __GLIBC_MINOR__ = (int)39L;
     /**
      * {@snippet lang=c :
-     * #define _DARWIN_FEATURE_ONLY_UNIX_CONFORMANCE 1
+     * #define __GLIBC_MINOR__ 39
      * }
      */
-    public static int _DARWIN_FEATURE_ONLY_UNIX_CONFORMANCE() {
-        return _DARWIN_FEATURE_ONLY_UNIX_CONFORMANCE;
+    public static int __GLIBC_MINOR__() {
+        return __GLIBC_MINOR__;
     }
-    private static final int _DARWIN_FEATURE_UNIX_CONFORMANCE = (int)3L;
+    private static final int _SYS_CDEFS_H = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define _DARWIN_FEATURE_UNIX_CONFORMANCE 3
+     * #define _SYS_CDEFS_H 1
      * }
      */
-    public static int _DARWIN_FEATURE_UNIX_CONFORMANCE() {
-        return _DARWIN_FEATURE_UNIX_CONFORMANCE;
+    public static int _SYS_CDEFS_H() {
+        return _SYS_CDEFS_H;
     }
-    private static final int __has_ptrcheck = (int)0L;
+    private static final int __glibc_c99_flexarr_available = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __has_ptrcheck 0
+     * #define __glibc_c99_flexarr_available 1
      * }
      */
-    public static int __has_ptrcheck() {
-        return __has_ptrcheck;
+    public static int __glibc_c99_flexarr_available() {
+        return __glibc_c99_flexarr_available;
     }
-    private static final int USE_CLANG_TYPES = (int)0L;
+    private static final int __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define USE_CLANG_TYPES 0
+     * #define __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI 0
      * }
      */
-    public static int USE_CLANG_TYPES() {
-        return USE_CLANG_TYPES;
+    public static int __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI() {
+        return __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI;
     }
-    private static final int __PTHREAD_SIZE__ = (int)8176L;
+    private static final int __HAVE_GENERIC_SELECTION = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_SIZE__ 8176
+     * #define __HAVE_GENERIC_SELECTION 1
      * }
      */
-    public static int __PTHREAD_SIZE__() {
-        return __PTHREAD_SIZE__;
+    public static int __HAVE_GENERIC_SELECTION() {
+        return __HAVE_GENERIC_SELECTION;
     }
-    private static final int __PTHREAD_ATTR_SIZE__ = (int)56L;
+    private static final int __GLIBC_USE_LIB_EXT2 = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_ATTR_SIZE__ 56
+     * #define __GLIBC_USE_LIB_EXT2 0
      * }
      */
-    public static int __PTHREAD_ATTR_SIZE__() {
-        return __PTHREAD_ATTR_SIZE__;
+    public static int __GLIBC_USE_LIB_EXT2() {
+        return __GLIBC_USE_LIB_EXT2;
     }
-    private static final int __PTHREAD_MUTEXATTR_SIZE__ = (int)8L;
+    private static final int __GLIBC_USE_IEC_60559_BFP_EXT = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_MUTEXATTR_SIZE__ 8
+     * #define __GLIBC_USE_IEC_60559_BFP_EXT 0
      * }
      */
-    public static int __PTHREAD_MUTEXATTR_SIZE__() {
-        return __PTHREAD_MUTEXATTR_SIZE__;
+    public static int __GLIBC_USE_IEC_60559_BFP_EXT() {
+        return __GLIBC_USE_IEC_60559_BFP_EXT;
     }
-    private static final int __PTHREAD_MUTEX_SIZE__ = (int)56L;
+    private static final int __GLIBC_USE_IEC_60559_BFP_EXT_C2X = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_MUTEX_SIZE__ 56
+     * #define __GLIBC_USE_IEC_60559_BFP_EXT_C2X 0
      * }
      */
-    public static int __PTHREAD_MUTEX_SIZE__() {
-        return __PTHREAD_MUTEX_SIZE__;
+    public static int __GLIBC_USE_IEC_60559_BFP_EXT_C2X() {
+        return __GLIBC_USE_IEC_60559_BFP_EXT_C2X;
     }
-    private static final int __PTHREAD_CONDATTR_SIZE__ = (int)8L;
+    private static final int __GLIBC_USE_IEC_60559_EXT = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_CONDATTR_SIZE__ 8
+     * #define __GLIBC_USE_IEC_60559_EXT 0
      * }
      */
-    public static int __PTHREAD_CONDATTR_SIZE__() {
-        return __PTHREAD_CONDATTR_SIZE__;
+    public static int __GLIBC_USE_IEC_60559_EXT() {
+        return __GLIBC_USE_IEC_60559_EXT;
     }
-    private static final int __PTHREAD_COND_SIZE__ = (int)40L;
+    private static final int __GLIBC_USE_IEC_60559_FUNCS_EXT = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_COND_SIZE__ 40
+     * #define __GLIBC_USE_IEC_60559_FUNCS_EXT 0
      * }
      */
-    public static int __PTHREAD_COND_SIZE__() {
-        return __PTHREAD_COND_SIZE__;
+    public static int __GLIBC_USE_IEC_60559_FUNCS_EXT() {
+        return __GLIBC_USE_IEC_60559_FUNCS_EXT;
     }
-    private static final int __PTHREAD_ONCE_SIZE__ = (int)8L;
+    private static final int __GLIBC_USE_IEC_60559_FUNCS_EXT_C2X = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_ONCE_SIZE__ 8
+     * #define __GLIBC_USE_IEC_60559_FUNCS_EXT_C2X 0
      * }
      */
-    public static int __PTHREAD_ONCE_SIZE__() {
-        return __PTHREAD_ONCE_SIZE__;
+    public static int __GLIBC_USE_IEC_60559_FUNCS_EXT_C2X() {
+        return __GLIBC_USE_IEC_60559_FUNCS_EXT_C2X;
     }
-    private static final int __PTHREAD_RWLOCK_SIZE__ = (int)192L;
+    private static final int __GLIBC_USE_IEC_60559_TYPES_EXT = (int)0L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_RWLOCK_SIZE__ 192
+     * #define __GLIBC_USE_IEC_60559_TYPES_EXT 0
      * }
      */
-    public static int __PTHREAD_RWLOCK_SIZE__() {
-        return __PTHREAD_RWLOCK_SIZE__;
+    public static int __GLIBC_USE_IEC_60559_TYPES_EXT() {
+        return __GLIBC_USE_IEC_60559_TYPES_EXT;
     }
-    private static final int __PTHREAD_RWLOCKATTR_SIZE__ = (int)16L;
+    private static final int _BITS_TYPES_H = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define __PTHREAD_RWLOCKATTR_SIZE__ 16
+     * #define _BITS_TYPES_H 1
      * }
      */
-    public static int __PTHREAD_RWLOCKATTR_SIZE__() {
-        return __PTHREAD_RWLOCKATTR_SIZE__;
+    public static int _BITS_TYPES_H() {
+        return _BITS_TYPES_H;
     }
-    private static final int INT8_MAX = (int)127L;
+    private static final int _BITS_TYPESIZES_H = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define INT8_MAX 127
+     * #define _BITS_TYPESIZES_H 1
      * }
      */
-    public static int INT8_MAX() {
-        return INT8_MAX;
+    public static int _BITS_TYPESIZES_H() {
+        return _BITS_TYPESIZES_H;
     }
-    private static final int INT16_MAX = (int)32767L;
+    private static final int __OFF_T_MATCHES_OFF64_T = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define INT16_MAX 32767
+     * #define __OFF_T_MATCHES_OFF64_T 1
      * }
      */
-    public static int INT16_MAX() {
-        return INT16_MAX;
+    public static int __OFF_T_MATCHES_OFF64_T() {
+        return __OFF_T_MATCHES_OFF64_T;
     }
-    private static final int INT32_MAX = (int)2147483647L;
+    private static final int __INO_T_MATCHES_INO64_T = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define INT32_MAX 2147483647
+     * #define __INO_T_MATCHES_INO64_T 1
      * }
      */
-    public static int INT32_MAX() {
-        return INT32_MAX;
+    public static int __INO_T_MATCHES_INO64_T() {
+        return __INO_T_MATCHES_INO64_T;
     }
-    private static final int UINT8_MAX = (int)255L;
+    private static final int __RLIM_T_MATCHES_RLIM64_T = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define UINT8_MAX 255
+     * #define __RLIM_T_MATCHES_RLIM64_T 1
      * }
      */
-    public static int UINT8_MAX() {
-        return UINT8_MAX;
+    public static int __RLIM_T_MATCHES_RLIM64_T() {
+        return __RLIM_T_MATCHES_RLIM64_T;
     }
-    private static final int UINT16_MAX = (int)65535L;
+    private static final int __STATFS_MATCHES_STATFS64 = (int)1L;
     /**
      * {@snippet lang=c :
-     * #define UINT16_MAX 65535
+     * #define __STATFS_MATCHES_STATFS64 1
      * }
      */
-    public static int UINT16_MAX() {
-        return UINT16_MAX;
+    public static int __STATFS_MATCHES_STATFS64() {
+        return __STATFS_MATCHES_STATFS64;
+    }
+    private static final int __KERNEL_OLD_TIMEVAL_MATCHES_TIMEVAL64 = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define __KERNEL_OLD_TIMEVAL_MATCHES_TIMEVAL64 1
+     * }
+     */
+    public static int __KERNEL_OLD_TIMEVAL_MATCHES_TIMEVAL64() {
+        return __KERNEL_OLD_TIMEVAL_MATCHES_TIMEVAL64;
+    }
+    private static final int __FD_SETSIZE = (int)1024L;
+    /**
+     * {@snippet lang=c :
+     * #define __FD_SETSIZE 1024
+     * }
+     */
+    public static int __FD_SETSIZE() {
+        return __FD_SETSIZE;
+    }
+    private static final int _BITS_TIME64_H = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _BITS_TIME64_H 1
+     * }
+     */
+    public static int _BITS_TIME64_H() {
+        return _BITS_TIME64_H;
+    }
+    private static final int _BITS_WCHAR_H = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _BITS_WCHAR_H 1
+     * }
+     */
+    public static int _BITS_WCHAR_H() {
+        return _BITS_WCHAR_H;
+    }
+    private static final int _BITS_STDINT_INTN_H = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _BITS_STDINT_INTN_H 1
+     * }
+     */
+    public static int _BITS_STDINT_INTN_H() {
+        return _BITS_STDINT_INTN_H;
+    }
+    private static final int _BITS_STDINT_UINTN_H = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _BITS_STDINT_UINTN_H 1
+     * }
+     */
+    public static int _BITS_STDINT_UINTN_H() {
+        return _BITS_STDINT_UINTN_H;
+    }
+    private static final int _BITS_STDINT_LEAST_H = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define _BITS_STDINT_LEAST_H 1
+     * }
+     */
+    public static int _BITS_STDINT_LEAST_H() {
+        return _BITS_STDINT_LEAST_H;
     }
     /**
      * {@snippet lang=c :
@@ -348,148 +592,28 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static final OfInt wchar_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef signed char int8_t
+     * typedef unsigned char __u_char
      * }
      */
-    public static final OfByte int8_t = bitcoinkernel_h.C_CHAR;
+    public static final OfByte __u_char = bitcoinkernel_h.C_CHAR;
     /**
      * {@snippet lang=c :
-     * typedef short int16_t
+     * typedef unsigned short __u_short
      * }
      */
-    public static final OfShort int16_t = bitcoinkernel_h.C_SHORT;
+    public static final OfShort __u_short = bitcoinkernel_h.C_SHORT;
     /**
      * {@snippet lang=c :
-     * typedef int int32_t
+     * typedef unsigned int __u_int
      * }
      */
-    public static final OfInt int32_t = bitcoinkernel_h.C_INT;
+    public static final OfInt __u_int = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef long long int64_t
+     * typedef unsigned long __u_long
      * }
      */
-    public static final OfLong int64_t = bitcoinkernel_h.C_LONG_LONG;
-    /**
-     * {@snippet lang=c :
-     * typedef unsigned char uint8_t
-     * }
-     */
-    public static final OfByte uint8_t = bitcoinkernel_h.C_CHAR;
-    /**
-     * {@snippet lang=c :
-     * typedef unsigned short uint16_t
-     * }
-     */
-    public static final OfShort uint16_t = bitcoinkernel_h.C_SHORT;
-    /**
-     * {@snippet lang=c :
-     * typedef unsigned int uint32_t
-     * }
-     */
-    public static final OfInt uint32_t = bitcoinkernel_h.C_INT;
-    /**
-     * {@snippet lang=c :
-     * typedef unsigned long long uint64_t
-     * }
-     */
-    public static final OfLong uint64_t = bitcoinkernel_h.C_LONG_LONG;
-    /**
-     * {@snippet lang=c :
-     * typedef int8_t int_least8_t
-     * }
-     */
-    public static final OfByte int_least8_t = bitcoinkernel_h.C_CHAR;
-    /**
-     * {@snippet lang=c :
-     * typedef int16_t int_least16_t
-     * }
-     */
-    public static final OfShort int_least16_t = bitcoinkernel_h.C_SHORT;
-    /**
-     * {@snippet lang=c :
-     * typedef int32_t int_least32_t
-     * }
-     */
-    public static final OfInt int_least32_t = bitcoinkernel_h.C_INT;
-    /**
-     * {@snippet lang=c :
-     * typedef int64_t int_least64_t
-     * }
-     */
-    public static final OfLong int_least64_t = bitcoinkernel_h.C_LONG_LONG;
-    /**
-     * {@snippet lang=c :
-     * typedef uint8_t uint_least8_t
-     * }
-     */
-    public static final OfByte uint_least8_t = bitcoinkernel_h.C_CHAR;
-    /**
-     * {@snippet lang=c :
-     * typedef uint16_t uint_least16_t
-     * }
-     */
-    public static final OfShort uint_least16_t = bitcoinkernel_h.C_SHORT;
-    /**
-     * {@snippet lang=c :
-     * typedef uint32_t uint_least32_t
-     * }
-     */
-    public static final OfInt uint_least32_t = bitcoinkernel_h.C_INT;
-    /**
-     * {@snippet lang=c :
-     * typedef uint64_t uint_least64_t
-     * }
-     */
-    public static final OfLong uint_least64_t = bitcoinkernel_h.C_LONG_LONG;
-    /**
-     * {@snippet lang=c :
-     * typedef int8_t int_fast8_t
-     * }
-     */
-    public static final OfByte int_fast8_t = bitcoinkernel_h.C_CHAR;
-    /**
-     * {@snippet lang=c :
-     * typedef int16_t int_fast16_t
-     * }
-     */
-    public static final OfShort int_fast16_t = bitcoinkernel_h.C_SHORT;
-    /**
-     * {@snippet lang=c :
-     * typedef int32_t int_fast32_t
-     * }
-     */
-    public static final OfInt int_fast32_t = bitcoinkernel_h.C_INT;
-    /**
-     * {@snippet lang=c :
-     * typedef int64_t int_fast64_t
-     * }
-     */
-    public static final OfLong int_fast64_t = bitcoinkernel_h.C_LONG_LONG;
-    /**
-     * {@snippet lang=c :
-     * typedef uint8_t uint_fast8_t
-     * }
-     */
-    public static final OfByte uint_fast8_t = bitcoinkernel_h.C_CHAR;
-    /**
-     * {@snippet lang=c :
-     * typedef uint16_t uint_fast16_t
-     * }
-     */
-    public static final OfShort uint_fast16_t = bitcoinkernel_h.C_SHORT;
-    /**
-     * {@snippet lang=c :
-     * typedef uint32_t uint_fast32_t
-     * }
-     */
-    public static final OfInt uint_fast32_t = bitcoinkernel_h.C_INT;
-    /**
-     * {@snippet lang=c :
-     * typedef uint64_t uint_fast64_t
-     * }
-     */
-    public static final OfLong uint_fast64_t = bitcoinkernel_h.C_LONG_LONG;
+    public static final OfLong __u_long = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
      * typedef signed char __int8_t
@@ -528,221 +652,463 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static final OfInt __uint32_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef long long __int64_t
+     * typedef long __int64_t
      * }
      */
-    public static final OfLong __int64_t = bitcoinkernel_h.C_LONG_LONG;
+    public static final OfLong __int64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef unsigned long long __uint64_t
+     * typedef unsigned long __uint64_t
      * }
      */
-    public static final OfLong __uint64_t = bitcoinkernel_h.C_LONG_LONG;
+    public static final OfLong __uint64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef long __darwin_intptr_t
+     * typedef __int8_t __int_least8_t
      * }
      */
-    public static final OfLong __darwin_intptr_t = bitcoinkernel_h.C_LONG;
+    public static final OfByte __int_least8_t = bitcoinkernel_h.C_CHAR;
     /**
      * {@snippet lang=c :
-     * typedef unsigned int __darwin_natural_t
+     * typedef __uint8_t __uint_least8_t
      * }
      */
-    public static final OfInt __darwin_natural_t = bitcoinkernel_h.C_INT;
+    public static final OfByte __uint_least8_t = bitcoinkernel_h.C_CHAR;
     /**
      * {@snippet lang=c :
-     * typedef int __darwin_ct_rune_t
+     * typedef __int16_t __int_least16_t
      * }
      */
-    public static final OfInt __darwin_ct_rune_t = bitcoinkernel_h.C_INT;
+    public static final OfShort __int_least16_t = bitcoinkernel_h.C_SHORT;
     /**
      * {@snippet lang=c :
-     * typedef long __darwin_ptrdiff_t
+     * typedef __uint16_t __uint_least16_t
      * }
      */
-    public static final OfLong __darwin_ptrdiff_t = bitcoinkernel_h.C_LONG;
+    public static final OfShort __uint_least16_t = bitcoinkernel_h.C_SHORT;
     /**
      * {@snippet lang=c :
-     * typedef unsigned long __darwin_size_t
+     * typedef __int32_t __int_least32_t
      * }
      */
-    public static final OfLong __darwin_size_t = bitcoinkernel_h.C_LONG;
+    public static final OfInt __int_least32_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __builtin_va_list __darwin_va_list
+     * typedef __uint32_t __uint_least32_t
      * }
      */
-    public static final AddressLayout __darwin_va_list = bitcoinkernel_h.C_POINTER;
+    public static final OfInt __uint_least32_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef int __darwin_wchar_t
+     * typedef __int64_t __int_least64_t
      * }
      */
-    public static final OfInt __darwin_wchar_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __int_least64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __darwin_wchar_t __darwin_rune_t
+     * typedef __uint64_t __uint_least64_t
      * }
      */
-    public static final OfInt __darwin_rune_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __uint_least64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef int __darwin_wint_t
+     * typedef long __quad_t
      * }
      */
-    public static final OfInt __darwin_wint_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __quad_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef unsigned long __darwin_clock_t
+     * typedef unsigned long __u_quad_t
      * }
      */
-    public static final OfLong __darwin_clock_t = bitcoinkernel_h.C_LONG;
+    public static final OfLong __u_quad_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __uint32_t __darwin_socklen_t
+     * typedef long __intmax_t
      * }
      */
-    public static final OfInt __darwin_socklen_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __intmax_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef long __darwin_ssize_t
+     * typedef unsigned long __uintmax_t
      * }
      */
-    public static final OfLong __darwin_ssize_t = bitcoinkernel_h.C_LONG;
+    public static final OfLong __uintmax_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef long __darwin_time_t
+     * typedef unsigned long __dev_t
      * }
      */
-    public static final OfLong __darwin_time_t = bitcoinkernel_h.C_LONG;
+    public static final OfLong __dev_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __int64_t __darwin_blkcnt_t
+     * typedef unsigned int __uid_t
      * }
      */
-    public static final OfLong __darwin_blkcnt_t = bitcoinkernel_h.C_LONG_LONG;
+    public static final OfInt __uid_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __int32_t __darwin_blksize_t
+     * typedef unsigned int __gid_t
      * }
      */
-    public static final OfInt __darwin_blksize_t = bitcoinkernel_h.C_INT;
+    public static final OfInt __gid_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __int32_t __darwin_dev_t
+     * typedef unsigned long __ino_t
      * }
      */
-    public static final OfInt __darwin_dev_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __ino_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef unsigned int __darwin_fsblkcnt_t
+     * typedef unsigned long __ino64_t
      * }
      */
-    public static final OfInt __darwin_fsblkcnt_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __ino64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef unsigned int __darwin_fsfilcnt_t
+     * typedef unsigned int __mode_t
      * }
      */
-    public static final OfInt __darwin_fsfilcnt_t = bitcoinkernel_h.C_INT;
+    public static final OfInt __mode_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __uint32_t __darwin_gid_t
+     * typedef unsigned long __nlink_t
      * }
      */
-    public static final OfInt __darwin_gid_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __nlink_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __uint32_t __darwin_id_t
+     * typedef long __off_t
      * }
      */
-    public static final OfInt __darwin_id_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __off_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __uint64_t __darwin_ino64_t
+     * typedef long __off64_t
      * }
      */
-    public static final OfLong __darwin_ino64_t = bitcoinkernel_h.C_LONG_LONG;
+    public static final OfLong __off64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __darwin_ino64_t __darwin_ino_t
+     * typedef int __pid_t
      * }
      */
-    public static final OfLong __darwin_ino_t = bitcoinkernel_h.C_LONG_LONG;
+    public static final OfInt __pid_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __darwin_natural_t __darwin_mach_port_name_t
+     * typedef long __clock_t
      * }
      */
-    public static final OfInt __darwin_mach_port_name_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __clock_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __darwin_mach_port_name_t __darwin_mach_port_t
+     * typedef unsigned long __rlim_t
      * }
      */
-    public static final OfInt __darwin_mach_port_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __rlim_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __uint16_t __darwin_mode_t
+     * typedef unsigned long __rlim64_t
      * }
      */
-    public static final OfShort __darwin_mode_t = bitcoinkernel_h.C_SHORT;
+    public static final OfLong __rlim64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __int64_t __darwin_off_t
+     * typedef unsigned int __id_t
      * }
      */
-    public static final OfLong __darwin_off_t = bitcoinkernel_h.C_LONG_LONG;
+    public static final OfInt __id_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __int32_t __darwin_pid_t
+     * typedef long __time_t
      * }
      */
-    public static final OfInt __darwin_pid_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __time_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __uint32_t __darwin_sigset_t
+     * typedef unsigned int __useconds_t
      * }
      */
-    public static final OfInt __darwin_sigset_t = bitcoinkernel_h.C_INT;
+    public static final OfInt __useconds_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __int32_t __darwin_suseconds_t
+     * typedef long __suseconds_t
      * }
      */
-    public static final OfInt __darwin_suseconds_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __suseconds_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __uint32_t __darwin_uid_t
+     * typedef long __suseconds64_t
      * }
      */
-    public static final OfInt __darwin_uid_t = bitcoinkernel_h.C_INT;
+    public static final OfLong __suseconds64_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef __uint32_t __darwin_useconds_t
+     * typedef int __daddr_t
      * }
      */
-    public static final OfInt __darwin_useconds_t = bitcoinkernel_h.C_INT;
+    public static final OfInt __daddr_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef unsigned long __darwin_pthread_key_t
+     * typedef int __key_t
      * }
      */
-    public static final OfLong __darwin_pthread_key_t = bitcoinkernel_h.C_LONG;
+    public static final OfInt __key_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef struct _opaque_pthread_t {
-     *     long __sig;
-     *     struct __darwin_pthread_handler_rec *__cleanup_stack;
-     *     char __opaque[8176];
-     * } *__darwin_pthread_t
+     * typedef int __clockid_t
      * }
      */
-    public static final AddressLayout __darwin_pthread_t = bitcoinkernel_h.C_POINTER;
+    public static final OfInt __clockid_t = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
-     * typedef __darwin_intptr_t intptr_t
+     * typedef void *__timer_t
+     * }
+     */
+    public static final AddressLayout __timer_t = bitcoinkernel_h.C_POINTER;
+    /**
+     * {@snippet lang=c :
+     * typedef long __blksize_t
+     * }
+     */
+    public static final OfLong __blksize_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long __blkcnt_t
+     * }
+     */
+    public static final OfLong __blkcnt_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long __blkcnt64_t
+     * }
+     */
+    public static final OfLong __blkcnt64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long __fsblkcnt_t
+     * }
+     */
+    public static final OfLong __fsblkcnt_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long __fsblkcnt64_t
+     * }
+     */
+    public static final OfLong __fsblkcnt64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long __fsfilcnt_t
+     * }
+     */
+    public static final OfLong __fsfilcnt_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long __fsfilcnt64_t
+     * }
+     */
+    public static final OfLong __fsfilcnt64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long __fsword_t
+     * }
+     */
+    public static final OfLong __fsword_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long __ssize_t
+     * }
+     */
+    public static final OfLong __ssize_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long __syscall_slong_t
+     * }
+     */
+    public static final OfLong __syscall_slong_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long __syscall_ulong_t
+     * }
+     */
+    public static final OfLong __syscall_ulong_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef __off64_t __loff_t
+     * }
+     */
+    public static final OfLong __loff_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef char *__caddr_t
+     * }
+     */
+    public static final AddressLayout __caddr_t = bitcoinkernel_h.C_POINTER;
+    /**
+     * {@snippet lang=c :
+     * typedef long __intptr_t
+     * }
+     */
+    public static final OfLong __intptr_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned int __socklen_t
+     * }
+     */
+    public static final OfInt __socklen_t = bitcoinkernel_h.C_INT;
+    /**
+     * {@snippet lang=c :
+     * typedef int __sig_atomic_t
+     * }
+     */
+    public static final OfInt __sig_atomic_t = bitcoinkernel_h.C_INT;
+    /**
+     * {@snippet lang=c :
+     * typedef __int8_t int8_t
+     * }
+     */
+    public static final OfByte int8_t = bitcoinkernel_h.C_CHAR;
+    /**
+     * {@snippet lang=c :
+     * typedef __int16_t int16_t
+     * }
+     */
+    public static final OfShort int16_t = bitcoinkernel_h.C_SHORT;
+    /**
+     * {@snippet lang=c :
+     * typedef __int32_t int32_t
+     * }
+     */
+    public static final OfInt int32_t = bitcoinkernel_h.C_INT;
+    /**
+     * {@snippet lang=c :
+     * typedef __int64_t int64_t
+     * }
+     */
+    public static final OfLong int64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint8_t uint8_t
+     * }
+     */
+    public static final OfByte uint8_t = bitcoinkernel_h.C_CHAR;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint16_t uint16_t
+     * }
+     */
+    public static final OfShort uint16_t = bitcoinkernel_h.C_SHORT;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint32_t uint32_t
+     * }
+     */
+    public static final OfInt uint32_t = bitcoinkernel_h.C_INT;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint64_t uint64_t
+     * }
+     */
+    public static final OfLong uint64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef __int_least8_t int_least8_t
+     * }
+     */
+    public static final OfByte int_least8_t = bitcoinkernel_h.C_CHAR;
+    /**
+     * {@snippet lang=c :
+     * typedef __int_least16_t int_least16_t
+     * }
+     */
+    public static final OfShort int_least16_t = bitcoinkernel_h.C_SHORT;
+    /**
+     * {@snippet lang=c :
+     * typedef __int_least32_t int_least32_t
+     * }
+     */
+    public static final OfInt int_least32_t = bitcoinkernel_h.C_INT;
+    /**
+     * {@snippet lang=c :
+     * typedef __int_least64_t int_least64_t
+     * }
+     */
+    public static final OfLong int_least64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint_least8_t uint_least8_t
+     * }
+     */
+    public static final OfByte uint_least8_t = bitcoinkernel_h.C_CHAR;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint_least16_t uint_least16_t
+     * }
+     */
+    public static final OfShort uint_least16_t = bitcoinkernel_h.C_SHORT;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint_least32_t uint_least32_t
+     * }
+     */
+    public static final OfInt uint_least32_t = bitcoinkernel_h.C_INT;
+    /**
+     * {@snippet lang=c :
+     * typedef __uint_least64_t uint_least64_t
+     * }
+     */
+    public static final OfLong uint_least64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef signed char int_fast8_t
+     * }
+     */
+    public static final OfByte int_fast8_t = bitcoinkernel_h.C_CHAR;
+    /**
+     * {@snippet lang=c :
+     * typedef long int_fast16_t
+     * }
+     */
+    public static final OfLong int_fast16_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long int_fast32_t
+     * }
+     */
+    public static final OfLong int_fast32_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long int_fast64_t
+     * }
+     */
+    public static final OfLong int_fast64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned char uint_fast8_t
+     * }
+     */
+    public static final OfByte uint_fast8_t = bitcoinkernel_h.C_CHAR;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long uint_fast16_t
+     * }
+     */
+    public static final OfLong uint_fast16_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long uint_fast32_t
+     * }
+     */
+    public static final OfLong uint_fast32_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef unsigned long uint_fast64_t
+     * }
+     */
+    public static final OfLong uint_fast64_t = bitcoinkernel_h.C_LONG;
+    /**
+     * {@snippet lang=c :
+     * typedef long intptr_t
      * }
      */
     public static final OfLong intptr_t = bitcoinkernel_h.C_LONG;
@@ -754,13 +1120,13 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static final OfLong uintptr_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef long intmax_t
+     * typedef __intmax_t intmax_t
      * }
      */
     public static final OfLong intmax_t = bitcoinkernel_h.C_LONG;
     /**
      * {@snippet lang=c :
-     * typedef unsigned long uintmax_t
+     * typedef __uintmax_t uintmax_t
      * }
      */
     public static final OfLong uintmax_t = bitcoinkernel_h.C_LONG;
@@ -788,6 +1154,12 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      * }
      */
     public static final OfInt btck_BlockValidationResult = bitcoinkernel_h.C_INT;
+    /**
+     * {@snippet lang=c :
+     * typedef uint32_t btck_TxValidationResult
+     * }
+     */
+    public static final OfInt btck_TxValidationResult = bitcoinkernel_h.C_INT;
     /**
      * {@snippet lang=c :
      * typedef uint8_t btck_LogCategory
@@ -819,6 +1191,249 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      */
     public static final OfByte btck_ChainType = bitcoinkernel_h.C_CHAR;
 
+    /**
+     * Variadic invoker class for:
+     * {@snippet lang=c :
+     * btck_TxValidationState *btck_tx_validation_state_create()
+     * }
+     */
+    public static class btck_tx_validation_state_create {
+        private static final FunctionDescriptor BASE_DESC = FunctionDescriptor.of(
+                bitcoinkernel_h.C_POINTER        );
+        private static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_tx_validation_state_create");
+
+        private final MethodHandle handle;
+        private final FunctionDescriptor descriptor;
+        private final MethodHandle spreader;
+
+        private btck_tx_validation_state_create(MethodHandle handle, FunctionDescriptor descriptor, MethodHandle spreader) {
+            this.handle = handle;
+            this.descriptor = descriptor;
+            this.spreader = spreader;
+        }
+
+        /**
+         * Variadic invoker factory for:
+         * {@snippet lang=c :
+         * btck_TxValidationState *btck_tx_validation_state_create()
+         * }
+         */
+        public static btck_tx_validation_state_create makeInvoker(MemoryLayout... layouts) {
+            FunctionDescriptor desc$ = BASE_DESC.appendArgumentLayouts(layouts);
+            Linker.Option fva$ = Linker.Option.firstVariadicArg(BASE_DESC.argumentLayouts().size());
+            var mh$ = Linker.nativeLinker().downcallHandle(ADDR, desc$, fva$);
+            var spreader$ = mh$.asSpreader(Object[].class, layouts.length);
+            return new btck_tx_validation_state_create(mh$, desc$, spreader$);
+        }
+
+        /**
+         * {@return the address}
+         */
+        public static MemorySegment address() {
+            return ADDR;
+        }
+
+        /**
+         * {@return the specialized method handle}
+         */
+        public MethodHandle handle() {
+            return handle;
+        }
+
+        /**
+         * {@return the specialized descriptor}
+         */
+        public FunctionDescriptor descriptor() {
+            return descriptor;
+        }
+
+        public MemorySegment apply(Object... x0) {
+            try {
+                if (TRACE_DOWNCALLS) {
+                    traceDowncall("btck_tx_validation_state_create", x0);
+                }
+                return (MemorySegment) spreader.invokeExact(x0);
+            } catch(IllegalArgumentException | ClassCastException ex$)  {
+                throw ex$; // rethrow IAE from passing wrong number/type of args
+            } catch (Throwable ex$) {
+               throw new AssertionError("should not reach here", ex$);
+            }
+        }
+    }
+
+    private static class btck_tx_validation_state_get_validation_mode {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_CHAR,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_tx_validation_state_get_validation_mode");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_ValidationMode btck_tx_validation_state_get_validation_mode(const btck_TxValidationState *state)
+     * }
+     */
+    public static FunctionDescriptor btck_tx_validation_state_get_validation_mode$descriptor() {
+        return btck_tx_validation_state_get_validation_mode.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_ValidationMode btck_tx_validation_state_get_validation_mode(const btck_TxValidationState *state)
+     * }
+     */
+    public static MethodHandle btck_tx_validation_state_get_validation_mode$handle() {
+        return btck_tx_validation_state_get_validation_mode.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_ValidationMode btck_tx_validation_state_get_validation_mode(const btck_TxValidationState *state)
+     * }
+     */
+    public static MemorySegment btck_tx_validation_state_get_validation_mode$address() {
+        return btck_tx_validation_state_get_validation_mode.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_ValidationMode btck_tx_validation_state_get_validation_mode(const btck_TxValidationState *state)
+     * }
+     */
+    public static byte btck_tx_validation_state_get_validation_mode(MemorySegment state) {
+        var mh$ = btck_tx_validation_state_get_validation_mode.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_tx_validation_state_get_validation_mode", state);
+            }
+            return (byte)mh$.invokeExact(state);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_tx_validation_state_get_tx_validation_result {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_tx_validation_state_get_tx_validation_result");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_TxValidationResult btck_tx_validation_state_get_tx_validation_result(const btck_TxValidationState *state)
+     * }
+     */
+    public static FunctionDescriptor btck_tx_validation_state_get_tx_validation_result$descriptor() {
+        return btck_tx_validation_state_get_tx_validation_result.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_TxValidationResult btck_tx_validation_state_get_tx_validation_result(const btck_TxValidationState *state)
+     * }
+     */
+    public static MethodHandle btck_tx_validation_state_get_tx_validation_result$handle() {
+        return btck_tx_validation_state_get_tx_validation_result.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_TxValidationResult btck_tx_validation_state_get_tx_validation_result(const btck_TxValidationState *state)
+     * }
+     */
+    public static MemorySegment btck_tx_validation_state_get_tx_validation_result$address() {
+        return btck_tx_validation_state_get_tx_validation_result.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_TxValidationResult btck_tx_validation_state_get_tx_validation_result(const btck_TxValidationState *state)
+     * }
+     */
+    public static int btck_tx_validation_state_get_tx_validation_result(MemorySegment state) {
+        var mh$ = btck_tx_validation_state_get_tx_validation_result.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_tx_validation_state_get_tx_validation_result", state);
+            }
+            return (int)mh$.invokeExact(state);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_tx_validation_state_destroy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_tx_validation_state_destroy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void btck_tx_validation_state_destroy(btck_TxValidationState *state)
+     * }
+     */
+    public static FunctionDescriptor btck_tx_validation_state_destroy$descriptor() {
+        return btck_tx_validation_state_destroy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void btck_tx_validation_state_destroy(btck_TxValidationState *state)
+     * }
+     */
+    public static MethodHandle btck_tx_validation_state_destroy$handle() {
+        return btck_tx_validation_state_destroy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void btck_tx_validation_state_destroy(btck_TxValidationState *state)
+     * }
+     */
+    public static MemorySegment btck_tx_validation_state_destroy$address() {
+        return btck_tx_validation_state_destroy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void btck_tx_validation_state_destroy(btck_TxValidationState *state)
+     * }
+     */
+    public static void btck_tx_validation_state_destroy(MemorySegment state) {
+        var mh$ = btck_tx_validation_state_destroy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_tx_validation_state_destroy", state);
+            }
+            mh$.invokeExact(state);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class btck_transaction_create {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             bitcoinkernel_h.C_POINTER,
@@ -826,7 +1441,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -873,8 +1488,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_create", raw_transaction, raw_transaction_len);
             }
             return (MemorySegment)mh$.invokeExact(raw_transaction, raw_transaction_len);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -886,7 +1499,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -933,8 +1546,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_copy", transaction);
             }
             return (MemorySegment)mh$.invokeExact(transaction);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -948,7 +1559,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_to_bytes");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_to_bytes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -995,8 +1606,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_to_bytes", transaction, writer, user_data);
             }
             return (int)mh$.invokeExact(transaction, writer, user_data);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1008,7 +1617,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_count_outputs");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_count_outputs");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1055,8 +1664,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_count_outputs", transaction);
             }
             return (long)mh$.invokeExact(transaction);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1069,7 +1676,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_get_output_at");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_get_output_at");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1116,8 +1723,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_get_output_at", transaction, output_index);
             }
             return (MemorySegment)mh$.invokeExact(transaction, output_index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1130,7 +1735,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_get_input_at");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_get_input_at");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1177,8 +1782,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_get_input_at", transaction, input_index);
             }
             return (MemorySegment)mh$.invokeExact(transaction, input_index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1190,7 +1793,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_count_inputs");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_count_inputs");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1237,8 +1840,64 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_count_inputs", transaction);
             }
             return (long)mh$.invokeExact(transaction);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_transaction_get_locktime {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_get_locktime");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_get_locktime(const btck_Transaction *transaction)
+     * }
+     */
+    public static FunctionDescriptor btck_transaction_get_locktime$descriptor() {
+        return btck_transaction_get_locktime.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_get_locktime(const btck_Transaction *transaction)
+     * }
+     */
+    public static MethodHandle btck_transaction_get_locktime$handle() {
+        return btck_transaction_get_locktime.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_get_locktime(const btck_Transaction *transaction)
+     * }
+     */
+    public static MemorySegment btck_transaction_get_locktime$address() {
+        return btck_transaction_get_locktime.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_get_locktime(const btck_Transaction *transaction)
+     * }
+     */
+    public static int btck_transaction_get_locktime(MemorySegment transaction) {
+        var mh$ = btck_transaction_get_locktime.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_transaction_get_locktime", transaction);
+            }
+            return (int)mh$.invokeExact(transaction);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1250,7 +1909,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_get_txid");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_get_txid");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1297,8 +1956,65 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_get_txid", transaction);
             }
             return (MemorySegment)mh$.invokeExact(transaction);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_transaction_check {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_check");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * int btck_transaction_check(const btck_Transaction *tx, btck_TxValidationState *validation_state)
+     * }
+     */
+    public static FunctionDescriptor btck_transaction_check$descriptor() {
+        return btck_transaction_check.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * int btck_transaction_check(const btck_Transaction *tx, btck_TxValidationState *validation_state)
+     * }
+     */
+    public static MethodHandle btck_transaction_check$handle() {
+        return btck_transaction_check.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * int btck_transaction_check(const btck_Transaction *tx, btck_TxValidationState *validation_state)
+     * }
+     */
+    public static MemorySegment btck_transaction_check$address() {
+        return btck_transaction_check.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * int btck_transaction_check(const btck_Transaction *tx, btck_TxValidationState *validation_state)
+     * }
+     */
+    public static int btck_transaction_check(MemorySegment tx, MemorySegment validation_state) {
+        var mh$ = btck_transaction_check.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_transaction_check", tx, validation_state);
+            }
+            return (int)mh$.invokeExact(tx, validation_state);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1309,7 +2025,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1356,8 +2072,181 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_destroy", transaction);
             }
             mh$.invokeExact(transaction);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_precomputed_transaction_data_create {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_LONG
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_precomputed_transaction_data_create");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_create(const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len)
+     * }
+     */
+    public static FunctionDescriptor btck_precomputed_transaction_data_create$descriptor() {
+        return btck_precomputed_transaction_data_create.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_create(const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len)
+     * }
+     */
+    public static MethodHandle btck_precomputed_transaction_data_create$handle() {
+        return btck_precomputed_transaction_data_create.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_create(const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len)
+     * }
+     */
+    public static MemorySegment btck_precomputed_transaction_data_create$address() {
+        return btck_precomputed_transaction_data_create.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_create(const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len)
+     * }
+     */
+    public static MemorySegment btck_precomputed_transaction_data_create(MemorySegment tx_to, MemorySegment spent_outputs, long spent_outputs_len) {
+        var mh$ = btck_precomputed_transaction_data_create.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_precomputed_transaction_data_create", tx_to, spent_outputs, spent_outputs_len);
+            }
+            return (MemorySegment)mh$.invokeExact(tx_to, spent_outputs, spent_outputs_len);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_precomputed_transaction_data_copy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_precomputed_transaction_data_copy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_copy(const btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static FunctionDescriptor btck_precomputed_transaction_data_copy$descriptor() {
+        return btck_precomputed_transaction_data_copy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_copy(const btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static MethodHandle btck_precomputed_transaction_data_copy$handle() {
+        return btck_precomputed_transaction_data_copy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_copy(const btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static MemorySegment btck_precomputed_transaction_data_copy$address() {
+        return btck_precomputed_transaction_data_copy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_PrecomputedTransactionData *btck_precomputed_transaction_data_copy(const btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static MemorySegment btck_precomputed_transaction_data_copy(MemorySegment precomputed_txdata) {
+        var mh$ = btck_precomputed_transaction_data_copy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_precomputed_transaction_data_copy", precomputed_txdata);
+            }
+            return (MemorySegment)mh$.invokeExact(precomputed_txdata);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_precomputed_transaction_data_destroy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_precomputed_transaction_data_destroy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void btck_precomputed_transaction_data_destroy(btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static FunctionDescriptor btck_precomputed_transaction_data_destroy$descriptor() {
+        return btck_precomputed_transaction_data_destroy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void btck_precomputed_transaction_data_destroy(btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static MethodHandle btck_precomputed_transaction_data_destroy$handle() {
+        return btck_precomputed_transaction_data_destroy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void btck_precomputed_transaction_data_destroy(btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static MemorySegment btck_precomputed_transaction_data_destroy$address() {
+        return btck_precomputed_transaction_data_destroy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void btck_precomputed_transaction_data_destroy(btck_PrecomputedTransactionData *precomputed_txdata)
+     * }
+     */
+    public static void btck_precomputed_transaction_data_destroy(MemorySegment precomputed_txdata) {
+        var mh$ = btck_precomputed_transaction_data_destroy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_precomputed_transaction_data_destroy", precomputed_txdata);
+            }
+            mh$.invokeExact(precomputed_txdata);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1370,7 +2259,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_script_pubkey_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_script_pubkey_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1417,8 +2306,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_script_pubkey_create", script_pubkey, script_pubkey_len);
             }
             return (MemorySegment)mh$.invokeExact(script_pubkey, script_pubkey_len);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1430,7 +2317,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_script_pubkey_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_script_pubkey_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1477,8 +2364,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_script_pubkey_copy", script_pubkey);
             }
             return (MemorySegment)mh$.invokeExact(script_pubkey);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1488,16 +2373,15 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             bitcoinkernel_h.C_INT,
             bitcoinkernel_h.C_POINTER,
-            bitcoinkernel_h.C_LONG_LONG,
-            bitcoinkernel_h.C_POINTER,
-            bitcoinkernel_h.C_POINTER,
             bitcoinkernel_h.C_LONG,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
             bitcoinkernel_h.C_INT,
             bitcoinkernel_h.C_INT,
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_script_pubkey_verify");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_script_pubkey_verify");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1505,7 +2389,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
+     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_PrecomputedTransactionData *precomputed_txdata, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
      * }
      */
     public static FunctionDescriptor btck_script_pubkey_verify$descriptor() {
@@ -1515,7 +2399,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
+     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_PrecomputedTransactionData *precomputed_txdata, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
      * }
      */
     public static MethodHandle btck_script_pubkey_verify$handle() {
@@ -1525,7 +2409,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
+     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_PrecomputedTransactionData *precomputed_txdata, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
      * }
      */
     public static MemorySegment btck_script_pubkey_verify$address() {
@@ -1534,18 +2418,16 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
 
     /**
      * {@snippet lang=c :
-     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_TransactionOutput **spent_outputs, size_t spent_outputs_len, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
+     * int btck_script_pubkey_verify(const btck_ScriptPubkey *script_pubkey, int64_t amount, const btck_Transaction *tx_to, const btck_PrecomputedTransactionData *precomputed_txdata, unsigned int input_index, btck_ScriptVerificationFlags flags, btck_ScriptVerifyStatus *status)
      * }
      */
-    public static int btck_script_pubkey_verify(MemorySegment script_pubkey, long amount, MemorySegment tx_to, MemorySegment spent_outputs, long spent_outputs_len, int input_index, int flags, MemorySegment status) {
+    public static int btck_script_pubkey_verify(MemorySegment script_pubkey, long amount, MemorySegment tx_to, MemorySegment precomputed_txdata, int input_index, int flags, MemorySegment status) {
         var mh$ = btck_script_pubkey_verify.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("btck_script_pubkey_verify", script_pubkey, amount, tx_to, spent_outputs, spent_outputs_len, input_index, flags, status);
+                traceDowncall("btck_script_pubkey_verify", script_pubkey, amount, tx_to, precomputed_txdata, input_index, flags, status);
             }
-            return (int)mh$.invokeExact(script_pubkey, amount, tx_to, spent_outputs, spent_outputs_len, input_index, flags, status);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (int)mh$.invokeExact(script_pubkey, amount, tx_to, precomputed_txdata, input_index, flags, status);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1559,7 +2441,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_script_pubkey_to_bytes");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_script_pubkey_to_bytes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1606,8 +2488,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_script_pubkey_to_bytes", script_pubkey, writer, user_data);
             }
             return (int)mh$.invokeExact(script_pubkey, writer, user_data);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1618,7 +2498,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_script_pubkey_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_script_pubkey_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1665,8 +2545,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_script_pubkey_destroy", script_pubkey);
             }
             mh$.invokeExact(script_pubkey);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1676,10 +2554,10 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             bitcoinkernel_h.C_POINTER,
             bitcoinkernel_h.C_POINTER,
-            bitcoinkernel_h.C_LONG_LONG
+            bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_output_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_output_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1726,8 +2604,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_output_create", script_pubkey, amount);
             }
             return (MemorySegment)mh$.invokeExact(script_pubkey, amount);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1739,7 +2615,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_output_get_script_pubkey");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_output_get_script_pubkey");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1786,8 +2662,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_output_get_script_pubkey", transaction_output);
             }
             return (MemorySegment)mh$.invokeExact(transaction_output);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1795,11 +2669,11 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
 
     private static class btck_transaction_output_get_amount {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
-            bitcoinkernel_h.C_LONG_LONG,
+            bitcoinkernel_h.C_LONG,
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_output_get_amount");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_output_get_amount");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1846,8 +2720,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_output_get_amount", transaction_output);
             }
             return (long)mh$.invokeExact(transaction_output);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1859,7 +2731,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_output_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_output_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1906,8 +2778,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_output_copy", transaction_output);
             }
             return (MemorySegment)mh$.invokeExact(transaction_output);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1918,7 +2788,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_output_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_output_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1965,8 +2835,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_output_destroy", transaction_output);
             }
             mh$.invokeExact(transaction_output);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1980,7 +2848,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      */
     public static class btck_logging_disable {
         private static final FunctionDescriptor BASE_DESC = FunctionDescriptor.ofVoid(        );
-        private static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_logging_disable");
+        private static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_logging_disable");
 
         private final MethodHandle handle;
         private final FunctionDescriptor descriptor;
@@ -2046,7 +2914,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             btck_LoggingOptions.layout()
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_logging_set_options");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_logging_set_options");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2054,7 +2922,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * void btck_logging_set_options(const btck_LoggingOptions options)
+     * void btck_logging_set_options(btck_LoggingOptions options)
      * }
      */
     public static FunctionDescriptor btck_logging_set_options$descriptor() {
@@ -2064,7 +2932,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * void btck_logging_set_options(const btck_LoggingOptions options)
+     * void btck_logging_set_options(btck_LoggingOptions options)
      * }
      */
     public static MethodHandle btck_logging_set_options$handle() {
@@ -2074,7 +2942,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * void btck_logging_set_options(const btck_LoggingOptions options)
+     * void btck_logging_set_options(btck_LoggingOptions options)
      * }
      */
     public static MemorySegment btck_logging_set_options$address() {
@@ -2083,7 +2951,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
 
     /**
      * {@snippet lang=c :
-     * void btck_logging_set_options(const btck_LoggingOptions options)
+     * void btck_logging_set_options(btck_LoggingOptions options)
      * }
      */
     public static void btck_logging_set_options(MemorySegment options) {
@@ -2093,8 +2961,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_logging_set_options", options);
             }
             mh$.invokeExact(options);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2106,7 +2972,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_CHAR
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_logging_set_level_category");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_logging_set_level_category");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2153,8 +3019,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_logging_set_level_category", category, level);
             }
             mh$.invokeExact(category, level);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2165,7 +3029,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_CHAR
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_logging_enable_category");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_logging_enable_category");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2212,8 +3076,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_logging_enable_category", category);
             }
             mh$.invokeExact(category);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2224,7 +3086,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_CHAR
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_logging_disable_category");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_logging_disable_category");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2271,8 +3133,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_logging_disable_category", category);
             }
             mh$.invokeExact(category);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2286,7 +3146,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_logging_connection_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_logging_connection_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2333,8 +3193,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_logging_connection_create", log_callback, user_data, user_data_destroy_callback);
             }
             return (MemorySegment)mh$.invokeExact(log_callback, user_data, user_data_destroy_callback);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2345,7 +3203,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_logging_connection_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_logging_connection_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2392,8 +3250,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_logging_connection_destroy", logging_connection);
             }
             mh$.invokeExact(logging_connection);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2405,7 +3261,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_CHAR
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chain_parameters_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_parameters_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2413,7 +3269,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * btck_ChainParameters *btck_chain_parameters_create(const btck_ChainType chain_type)
+     * btck_ChainParameters *btck_chain_parameters_create(btck_ChainType chain_type)
      * }
      */
     public static FunctionDescriptor btck_chain_parameters_create$descriptor() {
@@ -2423,7 +3279,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * btck_ChainParameters *btck_chain_parameters_create(const btck_ChainType chain_type)
+     * btck_ChainParameters *btck_chain_parameters_create(btck_ChainType chain_type)
      * }
      */
     public static MethodHandle btck_chain_parameters_create$handle() {
@@ -2433,7 +3289,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * btck_ChainParameters *btck_chain_parameters_create(const btck_ChainType chain_type)
+     * btck_ChainParameters *btck_chain_parameters_create(btck_ChainType chain_type)
      * }
      */
     public static MemorySegment btck_chain_parameters_create$address() {
@@ -2442,7 +3298,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
 
     /**
      * {@snippet lang=c :
-     * btck_ChainParameters *btck_chain_parameters_create(const btck_ChainType chain_type)
+     * btck_ChainParameters *btck_chain_parameters_create(btck_ChainType chain_type)
      * }
      */
     public static MemorySegment btck_chain_parameters_create(byte chain_type) {
@@ -2452,8 +3308,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chain_parameters_create", chain_type);
             }
             return (MemorySegment)mh$.invokeExact(chain_type);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2465,7 +3319,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chain_parameters_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_parameters_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2512,8 +3366,64 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chain_parameters_copy", chain_parameters);
             }
             return (MemorySegment)mh$.invokeExact(chain_parameters);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_chain_parameters_get_consensus_params {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_parameters_get_consensus_params");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * const btck_ConsensusParams *btck_chain_parameters_get_consensus_params(const btck_ChainParameters *chain_parameters)
+     * }
+     */
+    public static FunctionDescriptor btck_chain_parameters_get_consensus_params$descriptor() {
+        return btck_chain_parameters_get_consensus_params.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * const btck_ConsensusParams *btck_chain_parameters_get_consensus_params(const btck_ChainParameters *chain_parameters)
+     * }
+     */
+    public static MethodHandle btck_chain_parameters_get_consensus_params$handle() {
+        return btck_chain_parameters_get_consensus_params.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * const btck_ConsensusParams *btck_chain_parameters_get_consensus_params(const btck_ChainParameters *chain_parameters)
+     * }
+     */
+    public static MemorySegment btck_chain_parameters_get_consensus_params$address() {
+        return btck_chain_parameters_get_consensus_params.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * const btck_ConsensusParams *btck_chain_parameters_get_consensus_params(const btck_ChainParameters *chain_parameters)
+     * }
+     */
+    public static MemorySegment btck_chain_parameters_get_consensus_params(MemorySegment chain_parameters) {
+        var mh$ = btck_chain_parameters_get_consensus_params.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_chain_parameters_get_consensus_params", chain_parameters);
+            }
+            return (MemorySegment)mh$.invokeExact(chain_parameters);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2524,7 +3434,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chain_parameters_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_parameters_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2571,8 +3481,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chain_parameters_destroy", chain_parameters);
             }
             mh$.invokeExact(chain_parameters);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2587,7 +3495,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static class btck_context_options_create {
         private static final FunctionDescriptor BASE_DESC = FunctionDescriptor.of(
                 bitcoinkernel_h.C_POINTER        );
-        private static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_options_create");
+        private static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_options_create");
 
         private final MethodHandle handle;
         private final FunctionDescriptor descriptor;
@@ -2654,7 +3562,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_options_set_chainparams");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_options_set_chainparams");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2701,8 +3609,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_options_set_chainparams", context_options, chain_parameters);
             }
             mh$.invokeExact(context_options, chain_parameters);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2714,7 +3620,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             btck_NotificationInterfaceCallbacks.layout()
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_options_set_notifications");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_options_set_notifications");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2761,8 +3667,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_options_set_notifications", context_options, notifications);
             }
             mh$.invokeExact(context_options, notifications);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2774,7 +3678,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             btck_ValidationInterfaceCallbacks.layout()
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_options_set_validation_interface");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_options_set_validation_interface");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2821,8 +3725,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_options_set_validation_interface", context_options, validation_interface_callbacks);
             }
             mh$.invokeExact(context_options, validation_interface_callbacks);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2833,7 +3735,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_options_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_options_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2880,8 +3782,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_options_destroy", context_options);
             }
             mh$.invokeExact(context_options);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2893,7 +3793,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2940,8 +3840,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_create", context_options);
             }
             return (MemorySegment)mh$.invokeExact(context_options);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2953,7 +3851,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3000,8 +3898,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_copy", context);
             }
             return (MemorySegment)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3013,7 +3909,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_interrupt");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_interrupt");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3060,8 +3956,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_interrupt", context);
             }
             return (int)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3072,7 +3966,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_context_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_context_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3119,8 +4013,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_context_destroy", context);
             }
             mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3132,7 +4024,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_tree_entry_get_previous");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_tree_entry_get_previous");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3179,8 +4071,64 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_tree_entry_get_previous", block_tree_entry);
             }
             return (MemorySegment)mh$.invokeExact(block_tree_entry);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_tree_entry_get_block_header {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_tree_entry_get_block_header");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_tree_entry_get_block_header(const btck_BlockTreeEntry *block_tree_entry)
+     * }
+     */
+    public static FunctionDescriptor btck_block_tree_entry_get_block_header$descriptor() {
+        return btck_block_tree_entry_get_block_header.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_tree_entry_get_block_header(const btck_BlockTreeEntry *block_tree_entry)
+     * }
+     */
+    public static MethodHandle btck_block_tree_entry_get_block_header$handle() {
+        return btck_block_tree_entry_get_block_header.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_tree_entry_get_block_header(const btck_BlockTreeEntry *block_tree_entry)
+     * }
+     */
+    public static MemorySegment btck_block_tree_entry_get_block_header$address() {
+        return btck_block_tree_entry_get_block_header.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_tree_entry_get_block_header(const btck_BlockTreeEntry *block_tree_entry)
+     * }
+     */
+    public static MemorySegment btck_block_tree_entry_get_block_header(MemorySegment block_tree_entry) {
+        var mh$ = btck_block_tree_entry_get_block_header.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_tree_entry_get_block_header", block_tree_entry);
+            }
+            return (MemorySegment)mh$.invokeExact(block_tree_entry);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3192,7 +4140,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_tree_entry_get_height");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_tree_entry_get_height");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3239,8 +4187,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_tree_entry_get_height", block_tree_entry);
             }
             return (int)mh$.invokeExact(block_tree_entry);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3252,7 +4198,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_tree_entry_get_block_hash");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_tree_entry_get_block_hash");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3299,8 +4245,124 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_tree_entry_get_block_hash", block_tree_entry);
             }
             return (MemorySegment)mh$.invokeExact(block_tree_entry);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_tree_entry_equals {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_tree_entry_equals");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * int btck_block_tree_entry_equals(const btck_BlockTreeEntry *entry1, const btck_BlockTreeEntry *entry2)
+     * }
+     */
+    public static FunctionDescriptor btck_block_tree_entry_equals$descriptor() {
+        return btck_block_tree_entry_equals.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * int btck_block_tree_entry_equals(const btck_BlockTreeEntry *entry1, const btck_BlockTreeEntry *entry2)
+     * }
+     */
+    public static MethodHandle btck_block_tree_entry_equals$handle() {
+        return btck_block_tree_entry_equals.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * int btck_block_tree_entry_equals(const btck_BlockTreeEntry *entry1, const btck_BlockTreeEntry *entry2)
+     * }
+     */
+    public static MemorySegment btck_block_tree_entry_equals$address() {
+        return btck_block_tree_entry_equals.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * int btck_block_tree_entry_equals(const btck_BlockTreeEntry *entry1, const btck_BlockTreeEntry *entry2)
+     * }
+     */
+    public static int btck_block_tree_entry_equals(MemorySegment entry1, MemorySegment entry2) {
+        var mh$ = btck_block_tree_entry_equals.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_tree_entry_equals", entry1, entry2);
+            }
+            return (int)mh$.invokeExact(entry1, entry2);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_tree_entry_get_ancestor {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_INT
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_tree_entry_get_ancestor");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_block_tree_entry_get_ancestor(const btck_BlockTreeEntry *block_tree_entry, int32_t height)
+     * }
+     */
+    public static FunctionDescriptor btck_block_tree_entry_get_ancestor$descriptor() {
+        return btck_block_tree_entry_get_ancestor.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_block_tree_entry_get_ancestor(const btck_BlockTreeEntry *block_tree_entry, int32_t height)
+     * }
+     */
+    public static MethodHandle btck_block_tree_entry_get_ancestor$handle() {
+        return btck_block_tree_entry_get_ancestor.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_block_tree_entry_get_ancestor(const btck_BlockTreeEntry *block_tree_entry, int32_t height)
+     * }
+     */
+    public static MemorySegment btck_block_tree_entry_get_ancestor$address() {
+        return btck_block_tree_entry_get_ancestor.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_block_tree_entry_get_ancestor(const btck_BlockTreeEntry *block_tree_entry, int32_t height)
+     * }
+     */
+    public static MemorySegment btck_block_tree_entry_get_ancestor(MemorySegment block_tree_entry, int height) {
+        var mh$ = btck_block_tree_entry_get_ancestor.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_tree_entry_get_ancestor", block_tree_entry, height);
+            }
+            return (MemorySegment)mh$.invokeExact(block_tree_entry, height);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3316,7 +4378,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_options_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_options_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3363,8 +4425,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_options_create", context, data_directory, data_directory_len, blocks_directory, blocks_directory_len);
             }
             return (MemorySegment)mh$.invokeExact(context, data_directory, data_directory_len, blocks_directory, blocks_directory_len);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3376,7 +4436,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_options_set_worker_threads_num");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_options_set_worker_threads_num");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3423,8 +4483,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_options_set_worker_threads_num", chainstate_manager_options, worker_threads);
             }
             mh$.invokeExact(chainstate_manager_options, worker_threads);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3438,7 +4496,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_options_set_wipe_dbs");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_options_set_wipe_dbs");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3485,8 +4543,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_options_set_wipe_dbs", chainstate_manager_options, wipe_block_tree_db, wipe_chainstate_db);
             }
             return (int)mh$.invokeExact(chainstate_manager_options, wipe_block_tree_db, wipe_chainstate_db);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3498,7 +4554,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_options_update_block_tree_db_in_memory");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_options_update_block_tree_db_in_memory");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3545,8 +4601,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_options_update_block_tree_db_in_memory", chainstate_manager_options, block_tree_db_in_memory);
             }
             mh$.invokeExact(chainstate_manager_options, block_tree_db_in_memory);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3558,7 +4612,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_options_update_chainstate_db_in_memory");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_options_update_chainstate_db_in_memory");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3605,8 +4659,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_options_update_chainstate_db_in_memory", chainstate_manager_options, chainstate_db_in_memory);
             }
             mh$.invokeExact(chainstate_manager_options, chainstate_db_in_memory);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3617,7 +4669,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_options_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_options_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3664,8 +4716,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_options_destroy", chainstate_manager_options);
             }
             mh$.invokeExact(chainstate_manager_options);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3677,7 +4727,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3724,8 +4774,123 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_create", chainstate_manager_options);
             }
             return (MemorySegment)mh$.invokeExact(chainstate_manager_options);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_chainstate_manager_get_best_entry {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_get_best_entry");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_chainstate_manager_get_best_entry(const btck_ChainstateManager *chainstate_manager)
+     * }
+     */
+    public static FunctionDescriptor btck_chainstate_manager_get_best_entry$descriptor() {
+        return btck_chainstate_manager_get_best_entry.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_chainstate_manager_get_best_entry(const btck_ChainstateManager *chainstate_manager)
+     * }
+     */
+    public static MethodHandle btck_chainstate_manager_get_best_entry$handle() {
+        return btck_chainstate_manager_get_best_entry.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_chainstate_manager_get_best_entry(const btck_ChainstateManager *chainstate_manager)
+     * }
+     */
+    public static MemorySegment btck_chainstate_manager_get_best_entry$address() {
+        return btck_chainstate_manager_get_best_entry.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * const btck_BlockTreeEntry *btck_chainstate_manager_get_best_entry(const btck_ChainstateManager *chainstate_manager)
+     * }
+     */
+    public static MemorySegment btck_chainstate_manager_get_best_entry(MemorySegment chainstate_manager) {
+        var mh$ = btck_chainstate_manager_get_best_entry.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_chainstate_manager_get_best_entry", chainstate_manager);
+            }
+            return (MemorySegment)mh$.invokeExact(chainstate_manager);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_chainstate_manager_process_block_header {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_process_block_header");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_chainstate_manager_process_block_header(btck_ChainstateManager *chainstate_manager, const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_chainstate_manager_process_block_header$descriptor() {
+        return btck_chainstate_manager_process_block_header.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_chainstate_manager_process_block_header(btck_ChainstateManager *chainstate_manager, const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_chainstate_manager_process_block_header$handle() {
+        return btck_chainstate_manager_process_block_header.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_chainstate_manager_process_block_header(btck_ChainstateManager *chainstate_manager, const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_chainstate_manager_process_block_header$address() {
+        return btck_chainstate_manager_process_block_header.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_chainstate_manager_process_block_header(btck_ChainstateManager *chainstate_manager, const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_chainstate_manager_process_block_header(MemorySegment chainstate_manager, MemorySegment header) {
+        var mh$ = btck_chainstate_manager_process_block_header.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_chainstate_manager_process_block_header", chainstate_manager, header);
+            }
+            return (MemorySegment)mh$.invokeExact(chainstate_manager, header);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3740,7 +4905,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_import_blocks");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_import_blocks");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3787,8 +4952,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_import_blocks", chainstate_manager, block_file_paths_data, block_file_paths_lens, block_file_paths_data_len);
             }
             return (int)mh$.invokeExact(chainstate_manager, block_file_paths_data, block_file_paths_lens, block_file_paths_data_len);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3802,7 +4965,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_process_block");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_process_block");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3849,8 +5012,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_process_block", chainstate_manager, block, new_block);
             }
             return (int)mh$.invokeExact(chainstate_manager, block, new_block);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3862,7 +5023,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_get_active_chain");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_get_active_chain");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3909,8 +5070,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_get_active_chain", chainstate_manager);
             }
             return (MemorySegment)mh$.invokeExact(chainstate_manager);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3923,7 +5082,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_get_block_tree_entry_by_hash");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_get_block_tree_entry_by_hash");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3970,8 +5129,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_get_block_tree_entry_by_hash", chainstate_manager, block_hash);
             }
             return (MemorySegment)mh$.invokeExact(chainstate_manager, block_hash);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3982,7 +5139,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chainstate_manager_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chainstate_manager_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4029,8 +5186,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chainstate_manager_destroy", chainstate_manager);
             }
             mh$.invokeExact(chainstate_manager);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4043,7 +5198,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_read");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_read");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4090,8 +5245,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_read", chainstate_manager, block_tree_entry);
             }
             return (MemorySegment)mh$.invokeExact(chainstate_manager, block_tree_entry);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4104,7 +5257,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4151,8 +5304,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_create", raw_block, raw_block_len);
             }
             return (MemorySegment)mh$.invokeExact(raw_block, raw_block_len);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4164,7 +5315,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4211,8 +5362,73 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_copy", block);
             }
             return (MemorySegment)mh$.invokeExact(block);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+    /**
+     * {@snippet lang=c :
+     * typedef uint32_t btck_BlockCheckFlags
+     * }
+     */
+    public static final OfInt btck_BlockCheckFlags = bitcoinkernel_h.C_INT;
+
+    private static class btck_block_check {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_check");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * int btck_block_check(const btck_Block *block, const btck_ConsensusParams *consensus_params, btck_BlockCheckFlags flags, btck_BlockValidationState *validation_state)
+     * }
+     */
+    public static FunctionDescriptor btck_block_check$descriptor() {
+        return btck_block_check.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * int btck_block_check(const btck_Block *block, const btck_ConsensusParams *consensus_params, btck_BlockCheckFlags flags, btck_BlockValidationState *validation_state)
+     * }
+     */
+    public static MethodHandle btck_block_check$handle() {
+        return btck_block_check.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * int btck_block_check(const btck_Block *block, const btck_ConsensusParams *consensus_params, btck_BlockCheckFlags flags, btck_BlockValidationState *validation_state)
+     * }
+     */
+    public static MemorySegment btck_block_check$address() {
+        return btck_block_check.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * int btck_block_check(const btck_Block *block, const btck_ConsensusParams *consensus_params, btck_BlockCheckFlags flags, btck_BlockValidationState *validation_state)
+     * }
+     */
+    public static int btck_block_check(MemorySegment block, MemorySegment consensus_params, int flags, MemorySegment validation_state) {
+        var mh$ = btck_block_check.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_check", block, consensus_params, flags, validation_state);
+            }
+            return (int)mh$.invokeExact(block, consensus_params, flags, validation_state);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4224,7 +5440,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_count_transactions");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_count_transactions");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4271,8 +5487,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_count_transactions", block);
             }
             return (long)mh$.invokeExact(block);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4285,7 +5499,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_get_transaction_at");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_get_transaction_at");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4332,8 +5546,64 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_get_transaction_at", block, transaction_index);
             }
             return (MemorySegment)mh$.invokeExact(block, transaction_index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_get_header {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_get_header");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_get_header(const btck_Block *block)
+     * }
+     */
+    public static FunctionDescriptor btck_block_get_header$descriptor() {
+        return btck_block_get_header.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_get_header(const btck_Block *block)
+     * }
+     */
+    public static MethodHandle btck_block_get_header$handle() {
+        return btck_block_get_header.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_get_header(const btck_Block *block)
+     * }
+     */
+    public static MemorySegment btck_block_get_header$address() {
+        return btck_block_get_header.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_get_header(const btck_Block *block)
+     * }
+     */
+    public static MemorySegment btck_block_get_header(MemorySegment block) {
+        var mh$ = btck_block_get_header.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_get_header", block);
+            }
+            return (MemorySegment)mh$.invokeExact(block);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4345,7 +5615,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_get_hash");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_get_hash");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4392,8 +5662,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_get_hash", block);
             }
             return (MemorySegment)mh$.invokeExact(block);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4407,7 +5675,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_to_bytes");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_to_bytes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4454,8 +5722,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_to_bytes", block, writer, user_data);
             }
             return (int)mh$.invokeExact(block, writer, user_data);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4466,7 +5732,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4513,10 +5779,78 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_destroy", block);
             }
             mh$.invokeExact(block);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    /**
+     * Variadic invoker class for:
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_block_validation_state_create()
+     * }
+     */
+    public static class btck_block_validation_state_create {
+        private static final FunctionDescriptor BASE_DESC = FunctionDescriptor.of(
+                bitcoinkernel_h.C_POINTER        );
+        private static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_validation_state_create");
+
+        private final MethodHandle handle;
+        private final FunctionDescriptor descriptor;
+        private final MethodHandle spreader;
+
+        private btck_block_validation_state_create(MethodHandle handle, FunctionDescriptor descriptor, MethodHandle spreader) {
+            this.handle = handle;
+            this.descriptor = descriptor;
+            this.spreader = spreader;
+        }
+
+        /**
+         * Variadic invoker factory for:
+         * {@snippet lang=c :
+         * btck_BlockValidationState *btck_block_validation_state_create()
+         * }
+         */
+        public static btck_block_validation_state_create makeInvoker(MemoryLayout... layouts) {
+            FunctionDescriptor desc$ = BASE_DESC.appendArgumentLayouts(layouts);
+            Linker.Option fva$ = Linker.Option.firstVariadicArg(BASE_DESC.argumentLayouts().size());
+            var mh$ = Linker.nativeLinker().downcallHandle(ADDR, desc$, fva$);
+            var spreader$ = mh$.asSpreader(Object[].class, layouts.length);
+            return new btck_block_validation_state_create(mh$, desc$, spreader$);
+        }
+
+        /**
+         * {@return the address}
+         */
+        public static MemorySegment address() {
+            return ADDR;
+        }
+
+        /**
+         * {@return the specialized method handle}
+         */
+        public MethodHandle handle() {
+            return handle;
+        }
+
+        /**
+         * {@return the specialized descriptor}
+         */
+        public FunctionDescriptor descriptor() {
+            return descriptor;
+        }
+
+        public MemorySegment apply(Object... x0) {
+            try {
+                if (TRACE_DOWNCALLS) {
+                    traceDowncall("btck_block_validation_state_create", x0);
+                }
+                return (MemorySegment) spreader.invokeExact(x0);
+            } catch(IllegalArgumentException | ClassCastException ex$)  {
+                throw ex$; // rethrow IAE from passing wrong number/type of args
+            } catch (Throwable ex$) {
+               throw new AssertionError("should not reach here", ex$);
+            }
         }
     }
 
@@ -4526,7 +5860,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_validation_state_get_validation_mode");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_validation_state_get_validation_mode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4573,8 +5907,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_validation_state_get_validation_mode", block_validation_state);
             }
             return (byte)mh$.invokeExact(block_validation_state);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4586,7 +5918,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_validation_state_get_block_validation_result");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_validation_state_get_block_validation_result");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4633,8 +5965,121 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_validation_state_get_block_validation_result", block_validation_state);
             }
             return (int)mh$.invokeExact(block_validation_state);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_validation_state_copy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_validation_state_copy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_block_validation_state_copy(const btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static FunctionDescriptor btck_block_validation_state_copy$descriptor() {
+        return btck_block_validation_state_copy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_block_validation_state_copy(const btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static MethodHandle btck_block_validation_state_copy$handle() {
+        return btck_block_validation_state_copy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_block_validation_state_copy(const btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static MemorySegment btck_block_validation_state_copy$address() {
+        return btck_block_validation_state_copy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_BlockValidationState *btck_block_validation_state_copy(const btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static MemorySegment btck_block_validation_state_copy(MemorySegment block_validation_state) {
+        var mh$ = btck_block_validation_state_copy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_validation_state_copy", block_validation_state);
+            }
+            return (MemorySegment)mh$.invokeExact(block_validation_state);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_validation_state_destroy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_validation_state_destroy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void btck_block_validation_state_destroy(btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static FunctionDescriptor btck_block_validation_state_destroy$descriptor() {
+        return btck_block_validation_state_destroy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void btck_block_validation_state_destroy(btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static MethodHandle btck_block_validation_state_destroy$handle() {
+        return btck_block_validation_state_destroy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void btck_block_validation_state_destroy(btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static MemorySegment btck_block_validation_state_destroy$address() {
+        return btck_block_validation_state_destroy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void btck_block_validation_state_destroy(btck_BlockValidationState *block_validation_state)
+     * }
+     */
+    public static void btck_block_validation_state_destroy(MemorySegment block_validation_state) {
+        var mh$ = btck_block_validation_state_destroy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_validation_state_destroy", block_validation_state);
+            }
+            mh$.invokeExact(block_validation_state);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4646,7 +6091,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chain_get_height");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_get_height");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4693,8 +6138,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chain_get_height", chain);
             }
             return (int)mh$.invokeExact(chain);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4707,7 +6150,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chain_get_by_height");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_get_by_height");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4715,7 +6158,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int block_height)
+     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int32_t block_height)
      * }
      */
     public static FunctionDescriptor btck_chain_get_by_height$descriptor() {
@@ -4725,7 +6168,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int block_height)
+     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int32_t block_height)
      * }
      */
     public static MethodHandle btck_chain_get_by_height$handle() {
@@ -4735,7 +6178,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int block_height)
+     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int32_t block_height)
      * }
      */
     public static MemorySegment btck_chain_get_by_height$address() {
@@ -4744,7 +6187,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
 
     /**
      * {@snippet lang=c :
-     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int block_height)
+     * const btck_BlockTreeEntry *btck_chain_get_by_height(const btck_Chain *chain, int32_t block_height)
      * }
      */
     public static MemorySegment btck_chain_get_by_height(MemorySegment chain, int block_height) {
@@ -4754,8 +6197,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chain_get_by_height", chain, block_height);
             }
             return (MemorySegment)mh$.invokeExact(chain, block_height);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4768,7 +6209,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_chain_contains");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_contains");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4815,8 +6256,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_chain_contains", chain, block_tree_entry);
             }
             return (int)mh$.invokeExact(chain, block_tree_entry);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4829,7 +6268,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_spent_outputs_read");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_spent_outputs_read");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4876,8 +6315,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_spent_outputs_read", chainstate_manager, block_tree_entry);
             }
             return (MemorySegment)mh$.invokeExact(chainstate_manager, block_tree_entry);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4889,7 +6326,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_spent_outputs_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_spent_outputs_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4936,8 +6373,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_spent_outputs_copy", block_spent_outputs);
             }
             return (MemorySegment)mh$.invokeExact(block_spent_outputs);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4949,7 +6384,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_spent_outputs_count");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_spent_outputs_count");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4996,8 +6431,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_spent_outputs_count", block_spent_outputs);
             }
             return (long)mh$.invokeExact(block_spent_outputs);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5010,7 +6443,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_spent_outputs_get_transaction_spent_outputs_at");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_spent_outputs_get_transaction_spent_outputs_at");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5057,8 +6490,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_spent_outputs_get_transaction_spent_outputs_at", block_spent_outputs, transaction_spent_outputs_index);
             }
             return (MemorySegment)mh$.invokeExact(block_spent_outputs, transaction_spent_outputs_index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5069,7 +6500,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_spent_outputs_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_spent_outputs_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5116,8 +6547,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_spent_outputs_destroy", block_spent_outputs);
             }
             mh$.invokeExact(block_spent_outputs);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5129,7 +6558,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_spent_outputs_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_spent_outputs_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5176,8 +6605,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_spent_outputs_copy", transaction_spent_outputs);
             }
             return (MemorySegment)mh$.invokeExact(transaction_spent_outputs);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5189,7 +6616,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_spent_outputs_count");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_spent_outputs_count");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5236,8 +6663,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_spent_outputs_count", transaction_spent_outputs);
             }
             return (long)mh$.invokeExact(transaction_spent_outputs);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5250,7 +6675,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_spent_outputs_get_coin_at");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_spent_outputs_get_coin_at");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5297,8 +6722,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_spent_outputs_get_coin_at", transaction_spent_outputs, coin_index);
             }
             return (MemorySegment)mh$.invokeExact(transaction_spent_outputs, coin_index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5309,7 +6732,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_spent_outputs_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_spent_outputs_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5356,8 +6779,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_spent_outputs_destroy", transaction_spent_outputs);
             }
             mh$.invokeExact(transaction_spent_outputs);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5369,7 +6790,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_input_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_input_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5416,8 +6837,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_input_copy", transaction_input);
             }
             return (MemorySegment)mh$.invokeExact(transaction_input);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5429,7 +6848,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_input_get_out_point");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_input_get_out_point");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5476,8 +6895,64 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_input_get_out_point", transaction_input);
             }
             return (MemorySegment)mh$.invokeExact(transaction_input);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_transaction_input_get_sequence {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_input_get_sequence");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_input_get_sequence(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static FunctionDescriptor btck_transaction_input_get_sequence$descriptor() {
+        return btck_transaction_input_get_sequence.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_input_get_sequence(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static MethodHandle btck_transaction_input_get_sequence$handle() {
+        return btck_transaction_input_get_sequence.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_input_get_sequence(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static MemorySegment btck_transaction_input_get_sequence$address() {
+        return btck_transaction_input_get_sequence.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * uint32_t btck_transaction_input_get_sequence(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static int btck_transaction_input_get_sequence(MemorySegment transaction_input) {
+        var mh$ = btck_transaction_input_get_sequence.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_transaction_input_get_sequence", transaction_input);
+            }
+            return (int)mh$.invokeExact(transaction_input);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5488,7 +6963,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_input_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_input_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5535,8 +7010,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_input_destroy", transaction_input);
             }
             mh$.invokeExact(transaction_input);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5548,7 +7021,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_out_point_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_out_point_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5595,8 +7068,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_out_point_copy", transaction_out_point);
             }
             return (MemorySegment)mh$.invokeExact(transaction_out_point);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5608,7 +7079,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_out_point_get_index");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_out_point_get_index");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5655,8 +7126,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_out_point_get_index", transaction_out_point);
             }
             return (int)mh$.invokeExact(transaction_out_point);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5668,7 +7137,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_out_point_get_txid");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_out_point_get_txid");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5715,8 +7184,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_out_point_get_txid", transaction_out_point);
             }
             return (MemorySegment)mh$.invokeExact(transaction_out_point);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5727,7 +7194,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_transaction_out_point_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_out_point_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5774,8 +7241,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_transaction_out_point_destroy", transaction_out_point);
             }
             mh$.invokeExact(transaction_out_point);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5787,7 +7252,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_txid_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_txid_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5834,8 +7299,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_txid_copy", txid);
             }
             return (MemorySegment)mh$.invokeExact(txid);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5848,7 +7311,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_txid_equals");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_txid_equals");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5895,8 +7358,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_txid_equals", txid1, txid2);
             }
             return (int)mh$.invokeExact(txid1, txid2);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5908,7 +7369,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_txid_to_bytes");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_txid_to_bytes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5955,8 +7416,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_txid_to_bytes", txid, output);
             }
             mh$.invokeExact(txid, output);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5967,7 +7426,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_txid_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_txid_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6014,8 +7473,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_txid_destroy", txid);
             }
             mh$.invokeExact(txid);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6027,7 +7484,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_coin_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_coin_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6074,8 +7531,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_coin_copy", coin);
             }
             return (MemorySegment)mh$.invokeExact(coin);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6087,7 +7542,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_coin_confirmation_height");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_coin_confirmation_height");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6134,8 +7589,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_coin_confirmation_height", coin);
             }
             return (int)mh$.invokeExact(coin);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6147,7 +7600,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_coin_is_coinbase");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_coin_is_coinbase");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6194,8 +7647,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_coin_is_coinbase", coin);
             }
             return (int)mh$.invokeExact(coin);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6207,7 +7658,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_coin_get_output");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_coin_get_output");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6254,8 +7705,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_coin_get_output", coin);
             }
             return (MemorySegment)mh$.invokeExact(coin);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6266,7 +7715,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_coin_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_coin_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6313,8 +7762,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_coin_destroy", coin);
             }
             mh$.invokeExact(coin);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6326,7 +7773,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_hash_create");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_hash_create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6373,8 +7820,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_hash_create", block_hash);
             }
             return (MemorySegment)mh$.invokeExact(block_hash);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6387,7 +7832,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_hash_equals");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_hash_equals");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6434,8 +7879,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_hash_equals", hash1, hash2);
             }
             return (int)mh$.invokeExact(hash1, hash2);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6447,7 +7890,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_hash_copy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_hash_copy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6494,8 +7937,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_hash_copy", block_hash);
             }
             return (MemorySegment)mh$.invokeExact(block_hash);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6507,7 +7948,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_hash_to_bytes");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_hash_to_bytes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6554,8 +7995,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_hash_to_bytes", block_hash, output);
             }
             mh$.invokeExact(block_hash, output);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6566,7 +8005,7 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
             bitcoinkernel_h.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("btck_block_hash_destroy");
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_hash_destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6613,8 +8052,587 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
                 traceDowncall("btck_block_hash_destroy", block_hash);
             }
             mh$.invokeExact(block_hash);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_create {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_LONG
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_create");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_create(const void *raw_block_header, size_t raw_block_header_len)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_create$descriptor() {
+        return btck_block_header_create.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_create(const void *raw_block_header, size_t raw_block_header_len)
+     * }
+     */
+    public static MethodHandle btck_block_header_create$handle() {
+        return btck_block_header_create.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_create(const void *raw_block_header, size_t raw_block_header_len)
+     * }
+     */
+    public static MemorySegment btck_block_header_create$address() {
+        return btck_block_header_create.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_create(const void *raw_block_header, size_t raw_block_header_len)
+     * }
+     */
+    public static MemorySegment btck_block_header_create(MemorySegment raw_block_header, long raw_block_header_len) {
+        var mh$ = btck_block_header_create.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_create", raw_block_header, raw_block_header_len);
+            }
+            return (MemorySegment)mh$.invokeExact(raw_block_header, raw_block_header_len);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_copy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_copy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_copy(const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_copy$descriptor() {
+        return btck_block_header_copy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_copy(const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_copy$handle() {
+        return btck_block_header_copy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_copy(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_copy$address() {
+        return btck_block_header_copy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_BlockHeader *btck_block_header_copy(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_copy(MemorySegment header) {
+        var mh$ = btck_block_header_copy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_copy", header);
+            }
+            return (MemorySegment)mh$.invokeExact(header);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_get_hash {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_get_hash");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_BlockHash *btck_block_header_get_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_get_hash$descriptor() {
+        return btck_block_header_get_hash.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_BlockHash *btck_block_header_get_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_get_hash$handle() {
+        return btck_block_header_get_hash.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_BlockHash *btck_block_header_get_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_hash$address() {
+        return btck_block_header_get_hash.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_BlockHash *btck_block_header_get_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_hash(MemorySegment header) {
+        var mh$ = btck_block_header_get_hash.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_get_hash", header);
+            }
+            return (MemorySegment)mh$.invokeExact(header);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_get_prev_hash {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_get_prev_hash");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * const btck_BlockHash *btck_block_header_get_prev_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_get_prev_hash$descriptor() {
+        return btck_block_header_get_prev_hash.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * const btck_BlockHash *btck_block_header_get_prev_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_get_prev_hash$handle() {
+        return btck_block_header_get_prev_hash.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * const btck_BlockHash *btck_block_header_get_prev_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_prev_hash$address() {
+        return btck_block_header_get_prev_hash.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * const btck_BlockHash *btck_block_header_get_prev_hash(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_prev_hash(MemorySegment header) {
+        var mh$ = btck_block_header_get_prev_hash.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_get_prev_hash", header);
+            }
+            return (MemorySegment)mh$.invokeExact(header);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_get_timestamp {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_get_timestamp");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_timestamp(const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_get_timestamp$descriptor() {
+        return btck_block_header_get_timestamp.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_timestamp(const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_get_timestamp$handle() {
+        return btck_block_header_get_timestamp.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_timestamp(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_timestamp$address() {
+        return btck_block_header_get_timestamp.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_timestamp(const btck_BlockHeader *header)
+     * }
+     */
+    public static int btck_block_header_get_timestamp(MemorySegment header) {
+        var mh$ = btck_block_header_get_timestamp.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_get_timestamp", header);
+            }
+            return (int)mh$.invokeExact(header);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_get_bits {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_get_bits");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_bits(const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_get_bits$descriptor() {
+        return btck_block_header_get_bits.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_bits(const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_get_bits$handle() {
+        return btck_block_header_get_bits.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_bits(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_bits$address() {
+        return btck_block_header_get_bits.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_bits(const btck_BlockHeader *header)
+     * }
+     */
+    public static int btck_block_header_get_bits(MemorySegment header) {
+        var mh$ = btck_block_header_get_bits.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_get_bits", header);
+            }
+            return (int)mh$.invokeExact(header);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_get_version {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_get_version");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * int32_t btck_block_header_get_version(const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_get_version$descriptor() {
+        return btck_block_header_get_version.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * int32_t btck_block_header_get_version(const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_get_version$handle() {
+        return btck_block_header_get_version.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * int32_t btck_block_header_get_version(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_version$address() {
+        return btck_block_header_get_version.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * int32_t btck_block_header_get_version(const btck_BlockHeader *header)
+     * }
+     */
+    public static int btck_block_header_get_version(MemorySegment header) {
+        var mh$ = btck_block_header_get_version.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_get_version", header);
+            }
+            return (int)mh$.invokeExact(header);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_get_nonce {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_get_nonce");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_nonce(const btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_get_nonce$descriptor() {
+        return btck_block_header_get_nonce.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_nonce(const btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_get_nonce$handle() {
+        return btck_block_header_get_nonce.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_nonce(const btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_get_nonce$address() {
+        return btck_block_header_get_nonce.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * uint32_t btck_block_header_get_nonce(const btck_BlockHeader *header)
+     * }
+     */
+    public static int btck_block_header_get_nonce(MemorySegment header) {
+        var mh$ = btck_block_header_get_nonce.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_get_nonce", header);
+            }
+            return (int)mh$.invokeExact(header);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_to_bytes {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_to_bytes");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * int btck_block_header_to_bytes(const btck_BlockHeader *header, unsigned char output[80])
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_to_bytes$descriptor() {
+        return btck_block_header_to_bytes.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * int btck_block_header_to_bytes(const btck_BlockHeader *header, unsigned char output[80])
+     * }
+     */
+    public static MethodHandle btck_block_header_to_bytes$handle() {
+        return btck_block_header_to_bytes.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * int btck_block_header_to_bytes(const btck_BlockHeader *header, unsigned char output[80])
+     * }
+     */
+    public static MemorySegment btck_block_header_to_bytes$address() {
+        return btck_block_header_to_bytes.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * int btck_block_header_to_bytes(const btck_BlockHeader *header, unsigned char output[80])
+     * }
+     */
+    public static int btck_block_header_to_bytes(MemorySegment header, MemorySegment output) {
+        var mh$ = btck_block_header_to_bytes.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_to_bytes", header, output);
+            }
+            return (int)mh$.invokeExact(header, output);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_block_header_destroy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_block_header_destroy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void btck_block_header_destroy(btck_BlockHeader *header)
+     * }
+     */
+    public static FunctionDescriptor btck_block_header_destroy$descriptor() {
+        return btck_block_header_destroy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void btck_block_header_destroy(btck_BlockHeader *header)
+     * }
+     */
+    public static MethodHandle btck_block_header_destroy$handle() {
+        return btck_block_header_destroy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void btck_block_header_destroy(btck_BlockHeader *header)
+     * }
+     */
+    public static MemorySegment btck_block_header_destroy$address() {
+        return btck_block_header_destroy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void btck_block_header_destroy(btck_BlockHeader *header)
+     * }
+     */
+    public static void btck_block_header_destroy(MemorySegment header) {
+        var mh$ = btck_block_header_destroy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_block_header_destroy", header);
+            }
+            mh$.invokeExact(header);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6628,62 +8646,68 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static MemorySegment NULL() {
         return NULL;
     }
+    private static final long _POSIX_C_SOURCE = 200809L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_SUF_EXTSN "$DARWIN_EXTSN"
+     * #define _POSIX_C_SOURCE 200809
      * }
      */
-    public static MemorySegment __DARWIN_SUF_EXTSN() {
-        class Holder {
-            static final MemorySegment __DARWIN_SUF_EXTSN
-                = bitcoinkernel_h.LIBRARY_ARENA.allocateFrom("$DARWIN_EXTSN");
-        }
-        return Holder.__DARWIN_SUF_EXTSN;
+    public static long _POSIX_C_SOURCE() {
+        return _POSIX_C_SOURCE;
     }
-    private static final long __DARWIN_C_ANSI = 4096L;
+    private static final int __TIMESIZE = (int)64L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_C_ANSI 4096
+     * #define __TIMESIZE 64
      * }
      */
-    public static long __DARWIN_C_ANSI() {
-        return __DARWIN_C_ANSI;
+    public static int __TIMESIZE() {
+        return __TIMESIZE;
     }
-    private static final long __DARWIN_C_FULL = 900000L;
+    private static final long __STDC_IEC_60559_BFP__ = 201404L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_C_FULL 900000
+     * #define __STDC_IEC_60559_BFP__ 201404
      * }
      */
-    public static long __DARWIN_C_FULL() {
-        return __DARWIN_C_FULL;
+    public static long __STDC_IEC_60559_BFP__() {
+        return __STDC_IEC_60559_BFP__;
     }
-    private static final long __DARWIN_C_LEVEL = 900000L;
+    private static final long __STDC_IEC_60559_COMPLEX__ = 201404L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_C_LEVEL 900000
+     * #define __STDC_IEC_60559_COMPLEX__ 201404
      * }
      */
-    public static long __DARWIN_C_LEVEL() {
-        return __DARWIN_C_LEVEL;
+    public static long __STDC_IEC_60559_COMPLEX__() {
+        return __STDC_IEC_60559_COMPLEX__;
     }
-    private static final MemorySegment __DARWIN_NULL = MemorySegment.ofAddress(0L);
+    private static final long __STDC_ISO_10646__ = 201706L;
     /**
      * {@snippet lang=c :
-     * #define __DARWIN_NULL (void*) 0
+     * #define __STDC_ISO_10646__ 201706
      * }
      */
-    public static MemorySegment __DARWIN_NULL() {
-        return __DARWIN_NULL;
+    public static long __STDC_ISO_10646__() {
+        return __STDC_ISO_10646__;
     }
-    private static final long INT64_MAX = 9223372036854775807L;
+    private static final int __WCHAR_MAX = (int)2147483647L;
     /**
      * {@snippet lang=c :
-     * #define INT64_MAX 9223372036854775807
+     * #define __WCHAR_MAX 2147483647
      * }
      */
-    public static long INT64_MAX() {
-        return INT64_MAX;
+    public static int __WCHAR_MAX() {
+        return __WCHAR_MAX;
+    }
+    private static final int __WCHAR_MIN = (int)-2147483648L;
+    /**
+     * {@snippet lang=c :
+     * #define __WCHAR_MIN -2147483648
+     * }
+     */
+    public static int __WCHAR_MIN() {
+        return __WCHAR_MIN;
     }
     private static final int INT8_MIN = (int)-128L;
     /**
@@ -6720,6 +8744,60 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      */
     public static long INT64_MIN() {
         return INT64_MIN;
+    }
+    private static final int INT8_MAX = (int)127L;
+    /**
+     * {@snippet lang=c :
+     * #define INT8_MAX 127
+     * }
+     */
+    public static int INT8_MAX() {
+        return INT8_MAX;
+    }
+    private static final int INT16_MAX = (int)32767L;
+    /**
+     * {@snippet lang=c :
+     * #define INT16_MAX 32767
+     * }
+     */
+    public static int INT16_MAX() {
+        return INT16_MAX;
+    }
+    private static final int INT32_MAX = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * #define INT32_MAX 2147483647
+     * }
+     */
+    public static int INT32_MAX() {
+        return INT32_MAX;
+    }
+    private static final long INT64_MAX = 9223372036854775807L;
+    /**
+     * {@snippet lang=c :
+     * #define INT64_MAX 9223372036854775807
+     * }
+     */
+    public static long INT64_MAX() {
+        return INT64_MAX;
+    }
+    private static final int UINT8_MAX = (int)255L;
+    /**
+     * {@snippet lang=c :
+     * #define UINT8_MAX 255
+     * }
+     */
+    public static int UINT8_MAX() {
+        return UINT8_MAX;
+    }
+    private static final int UINT16_MAX = (int)65535L;
+    /**
+     * {@snippet lang=c :
+     * #define UINT16_MAX 65535
+     * }
+     */
+    public static int UINT16_MAX() {
+        return UINT16_MAX;
     }
     private static final int UINT32_MAX = (int)4294967295L;
     /**
@@ -6856,22 +8934,22 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static int INT_FAST8_MIN() {
         return INT_FAST8_MIN;
     }
-    private static final int INT_FAST16_MIN = (int)-32768L;
+    private static final long INT_FAST16_MIN = -9223372036854775808L;
     /**
      * {@snippet lang=c :
-     * #define INT_FAST16_MIN -32768
+     * #define INT_FAST16_MIN -9223372036854775808
      * }
      */
-    public static int INT_FAST16_MIN() {
+    public static long INT_FAST16_MIN() {
         return INT_FAST16_MIN;
     }
-    private static final int INT_FAST32_MIN = (int)-2147483648L;
+    private static final long INT_FAST32_MIN = -9223372036854775808L;
     /**
      * {@snippet lang=c :
-     * #define INT_FAST32_MIN -2147483648
+     * #define INT_FAST32_MIN -9223372036854775808
      * }
      */
-    public static int INT_FAST32_MIN() {
+    public static long INT_FAST32_MIN() {
         return INT_FAST32_MIN;
     }
     private static final long INT_FAST64_MIN = -9223372036854775808L;
@@ -6892,22 +8970,22 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static int INT_FAST8_MAX() {
         return INT_FAST8_MAX;
     }
-    private static final int INT_FAST16_MAX = (int)32767L;
+    private static final long INT_FAST16_MAX = 9223372036854775807L;
     /**
      * {@snippet lang=c :
-     * #define INT_FAST16_MAX 32767
+     * #define INT_FAST16_MAX 9223372036854775807
      * }
      */
-    public static int INT_FAST16_MAX() {
+    public static long INT_FAST16_MAX() {
         return INT_FAST16_MAX;
     }
-    private static final int INT_FAST32_MAX = (int)2147483647L;
+    private static final long INT_FAST32_MAX = 9223372036854775807L;
     /**
      * {@snippet lang=c :
-     * #define INT_FAST32_MAX 2147483647
+     * #define INT_FAST32_MAX 9223372036854775807
      * }
      */
-    public static int INT_FAST32_MAX() {
+    public static long INT_FAST32_MAX() {
         return INT_FAST32_MAX;
     }
     private static final long INT_FAST64_MAX = 9223372036854775807L;
@@ -6928,22 +9006,22 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static int UINT_FAST8_MAX() {
         return UINT_FAST8_MAX;
     }
-    private static final int UINT_FAST16_MAX = (int)65535L;
+    private static final long UINT_FAST16_MAX = -1L;
     /**
      * {@snippet lang=c :
-     * #define UINT_FAST16_MAX 65535
+     * #define UINT_FAST16_MAX -1
      * }
      */
-    public static int UINT_FAST16_MAX() {
+    public static long UINT_FAST16_MAX() {
         return UINT_FAST16_MAX;
     }
-    private static final int UINT_FAST32_MAX = (int)4294967295L;
+    private static final long UINT_FAST32_MAX = -1L;
     /**
      * {@snippet lang=c :
-     * #define UINT_FAST32_MAX 4294967295
+     * #define UINT_FAST32_MAX -1
      * }
      */
-    public static int UINT_FAST32_MAX() {
+    public static long UINT_FAST32_MAX() {
         return UINT_FAST32_MAX;
     }
     private static final long UINT_FAST64_MAX = -1L;
@@ -6955,15 +9033,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static long UINT_FAST64_MAX() {
         return UINT_FAST64_MAX;
     }
-    private static final long INTPTR_MAX = 9223372036854775807L;
-    /**
-     * {@snippet lang=c :
-     * #define INTPTR_MAX 9223372036854775807
-     * }
-     */
-    public static long INTPTR_MAX() {
-        return INTPTR_MAX;
-    }
     private static final long INTPTR_MIN = -9223372036854775808L;
     /**
      * {@snippet lang=c :
@@ -6973,6 +9042,15 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static long INTPTR_MIN() {
         return INTPTR_MIN;
     }
+    private static final long INTPTR_MAX = 9223372036854775807L;
+    /**
+     * {@snippet lang=c :
+     * #define INTPTR_MAX 9223372036854775807
+     * }
+     */
+    public static long INTPTR_MAX() {
+        return INTPTR_MAX;
+    }
     private static final long UINTPTR_MAX = -1L;
     /**
      * {@snippet lang=c :
@@ -6981,6 +9059,15 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      */
     public static long UINTPTR_MAX() {
         return UINTPTR_MAX;
+    }
+    private static final long INTMAX_MIN = -9223372036854775808L;
+    /**
+     * {@snippet lang=c :
+     * #define INTMAX_MIN -9223372036854775808
+     * }
+     */
+    public static long INTMAX_MIN() {
+        return INTMAX_MIN;
     }
     private static final long INTMAX_MAX = 9223372036854775807L;
     /**
@@ -7000,15 +9087,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static long UINTMAX_MAX() {
         return UINTMAX_MAX;
     }
-    private static final long INTMAX_MIN = -9223372036854775808L;
-    /**
-     * {@snippet lang=c :
-     * #define INTMAX_MIN -9223372036854775808
-     * }
-     */
-    public static long INTMAX_MIN() {
-        return INTMAX_MIN;
-    }
     private static final long PTRDIFF_MIN = -9223372036854775808L;
     /**
      * {@snippet lang=c :
@@ -7027,60 +9105,6 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
     public static long PTRDIFF_MAX() {
         return PTRDIFF_MAX;
     }
-    private static final long SIZE_MAX = -1L;
-    /**
-     * {@snippet lang=c :
-     * #define SIZE_MAX -1
-     * }
-     */
-    public static long SIZE_MAX() {
-        return SIZE_MAX;
-    }
-    private static final long RSIZE_MAX = 9223372036854775807L;
-    /**
-     * {@snippet lang=c :
-     * #define RSIZE_MAX 9223372036854775807
-     * }
-     */
-    public static long RSIZE_MAX() {
-        return RSIZE_MAX;
-    }
-    private static final int WCHAR_MAX = (int)2147483647L;
-    /**
-     * {@snippet lang=c :
-     * #define WCHAR_MAX 2147483647
-     * }
-     */
-    public static int WCHAR_MAX() {
-        return WCHAR_MAX;
-    }
-    private static final int WCHAR_MIN = (int)-2147483648L;
-    /**
-     * {@snippet lang=c :
-     * #define WCHAR_MIN -2147483648
-     * }
-     */
-    public static int WCHAR_MIN() {
-        return WCHAR_MIN;
-    }
-    private static final int WINT_MIN = (int)-2147483648L;
-    /**
-     * {@snippet lang=c :
-     * #define WINT_MIN -2147483648
-     * }
-     */
-    public static int WINT_MIN() {
-        return WINT_MIN;
-    }
-    private static final int WINT_MAX = (int)2147483647L;
-    /**
-     * {@snippet lang=c :
-     * #define WINT_MAX 2147483647
-     * }
-     */
-    public static int WINT_MAX() {
-        return WINT_MAX;
-    }
     private static final int SIG_ATOMIC_MIN = (int)-2147483648L;
     /**
      * {@snippet lang=c :
@@ -7098,6 +9122,51 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      */
     public static int SIG_ATOMIC_MAX() {
         return SIG_ATOMIC_MAX;
+    }
+    private static final long SIZE_MAX = -1L;
+    /**
+     * {@snippet lang=c :
+     * #define SIZE_MAX -1
+     * }
+     */
+    public static long SIZE_MAX() {
+        return SIZE_MAX;
+    }
+    private static final int WCHAR_MIN = (int)-2147483648L;
+    /**
+     * {@snippet lang=c :
+     * #define WCHAR_MIN -2147483648
+     * }
+     */
+    public static int WCHAR_MIN() {
+        return WCHAR_MIN;
+    }
+    private static final int WCHAR_MAX = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * #define WCHAR_MAX 2147483647
+     * }
+     */
+    public static int WCHAR_MAX() {
+        return WCHAR_MAX;
+    }
+    private static final int WINT_MIN = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * #define WINT_MIN 0
+     * }
+     */
+    public static int WINT_MIN() {
+        return WINT_MIN;
+    }
+    private static final int WINT_MAX = (int)4294967295L;
+    /**
+     * {@snippet lang=c :
+     * #define WINT_MAX 4294967295
+     * }
+     */
+    public static int WINT_MAX() {
+        return WINT_MAX;
     }
     private static final byte btck_SynchronizationState_INIT_REINDEX = (byte)0L;
     /**
@@ -7251,6 +9320,123 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      */
     public static int btck_BlockValidationResult_HEADER_LOW_WORK() {
         return btck_BlockValidationResult_HEADER_LOW_WORK;
+    }
+    private static final int btck_TxValidationResult_UNSET = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_UNSET 0
+     * }
+     */
+    public static int btck_TxValidationResult_UNSET() {
+        return btck_TxValidationResult_UNSET;
+    }
+    private static final int btck_TxValidationResult_CONSENSUS = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_CONSENSUS 1
+     * }
+     */
+    public static int btck_TxValidationResult_CONSENSUS() {
+        return btck_TxValidationResult_CONSENSUS;
+    }
+    private static final int btck_TxValidationResult_INPUTS_NOT_STANDARD = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_INPUTS_NOT_STANDARD 2
+     * }
+     */
+    public static int btck_TxValidationResult_INPUTS_NOT_STANDARD() {
+        return btck_TxValidationResult_INPUTS_NOT_STANDARD;
+    }
+    private static final int btck_TxValidationResult_NOT_STANDARD = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_NOT_STANDARD 3
+     * }
+     */
+    public static int btck_TxValidationResult_NOT_STANDARD() {
+        return btck_TxValidationResult_NOT_STANDARD;
+    }
+    private static final int btck_TxValidationResult_MISSING_INPUTS = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_MISSING_INPUTS 4
+     * }
+     */
+    public static int btck_TxValidationResult_MISSING_INPUTS() {
+        return btck_TxValidationResult_MISSING_INPUTS;
+    }
+    private static final int btck_TxValidationResult_PREMATURE_SPEND = (int)5L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_PREMATURE_SPEND 5
+     * }
+     */
+    public static int btck_TxValidationResult_PREMATURE_SPEND() {
+        return btck_TxValidationResult_PREMATURE_SPEND;
+    }
+    private static final int btck_TxValidationResult_WITNESS_MUTATED = (int)6L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_WITNESS_MUTATED 6
+     * }
+     */
+    public static int btck_TxValidationResult_WITNESS_MUTATED() {
+        return btck_TxValidationResult_WITNESS_MUTATED;
+    }
+    private static final int btck_TxValidationResult_WITNESS_STRIPPED = (int)7L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_WITNESS_STRIPPED 7
+     * }
+     */
+    public static int btck_TxValidationResult_WITNESS_STRIPPED() {
+        return btck_TxValidationResult_WITNESS_STRIPPED;
+    }
+    private static final int btck_TxValidationResult_CONFLICT = (int)8L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_CONFLICT 8
+     * }
+     */
+    public static int btck_TxValidationResult_CONFLICT() {
+        return btck_TxValidationResult_CONFLICT;
+    }
+    private static final int btck_TxValidationResult_MEMPOOL_POLICY = (int)9L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_MEMPOOL_POLICY 9
+     * }
+     */
+    public static int btck_TxValidationResult_MEMPOOL_POLICY() {
+        return btck_TxValidationResult_MEMPOOL_POLICY;
+    }
+    private static final int btck_TxValidationResult_NO_MEMPOOL = (int)10L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_NO_MEMPOOL 10
+     * }
+     */
+    public static int btck_TxValidationResult_NO_MEMPOOL() {
+        return btck_TxValidationResult_NO_MEMPOOL;
+    }
+    private static final int btck_TxValidationResult_RECONSIDERABLE = (int)11L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_RECONSIDERABLE 11
+     * }
+     */
+    public static int btck_TxValidationResult_RECONSIDERABLE() {
+        return btck_TxValidationResult_RECONSIDERABLE;
+    }
+    private static final int btck_TxValidationResult_UNKNOWN = (int)12L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_TxValidationResult_UNKNOWN 12
+     * }
+     */
+    public static int btck_TxValidationResult_UNKNOWN() {
+        return btck_TxValidationResult_UNKNOWN;
     }
     private static final byte btck_LogCategory_ALL = (byte)0L;
     /**
@@ -7530,6 +9716,42 @@ public class bitcoinkernel_h extends bitcoinkernel_h$shared {
      */
     public static byte btck_ChainType_REGTEST() {
         return btck_ChainType_REGTEST;
+    }
+    private static final int btck_BlockCheckFlags_BASE = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_BlockCheckFlags_BASE 0
+     * }
+     */
+    public static int btck_BlockCheckFlags_BASE() {
+        return btck_BlockCheckFlags_BASE;
+    }
+    private static final int btck_BlockCheckFlags_POW = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_BlockCheckFlags_POW 1
+     * }
+     */
+    public static int btck_BlockCheckFlags_POW() {
+        return btck_BlockCheckFlags_POW;
+    }
+    private static final int btck_BlockCheckFlags_MERKLE = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_BlockCheckFlags_MERKLE 2
+     * }
+     */
+    public static int btck_BlockCheckFlags_MERKLE() {
+        return btck_BlockCheckFlags_MERKLE;
+    }
+    private static final int btck_BlockCheckFlags_ALL = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * #define btck_BlockCheckFlags_ALL 3
+     * }
+     */
+    public static int btck_BlockCheckFlags_ALL() {
+        return btck_BlockCheckFlags_ALL;
     }
 }
 

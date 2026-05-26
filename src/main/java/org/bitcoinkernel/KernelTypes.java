@@ -7,6 +7,23 @@ import static org.bitcoinkernel.jextract.bitcoinkernel_h.*;
 // Enum definitions and conversions for Bitcoin Kernel
 public class KernelTypes {
 
+    static {
+        try {
+            System.loadLibrary("bitcoinkernel");
+        } catch (UnsatisfiedLinkError e) {
+            // This can happen if the library is not in the search path.
+            // We don't throw here to allow for manual loading or cases where it's already loaded.
+        }
+    }
+
+    /**
+     * Helper method to check if a MemorySegment is null.
+     * Handles both MemorySegment.NULL and address == 0 cases.
+     */
+    public static boolean isNull(MemorySegment segment) {
+        return segment == null || segment == MemorySegment.NULL || segment.address() == 0;
+    }
+
     // ===== Log Category =====
     public enum LogCategory {
         ALL(btck_LogCategory_ALL()),

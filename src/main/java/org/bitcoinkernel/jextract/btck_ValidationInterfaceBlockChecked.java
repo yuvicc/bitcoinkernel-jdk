@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_ValidationInterfaceBlockChecked)(void *, btck_Block *, const btck_BlockValidationState *)
  * }
  */
-public final class btck_ValidationInterfaceBlockChecked {
+public class btck_ValidationInterfaceBlockChecked {
 
-    private btck_ValidationInterfaceBlockChecked() {
+    btck_ValidationInterfaceBlockChecked() {
         // Should not be called directly
     }
 
@@ -58,11 +58,9 @@ public final class btck_ValidationInterfaceBlockChecked {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data, MemorySegment block, MemorySegment state) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data, MemorySegment block, MemorySegment state) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data, block, state);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

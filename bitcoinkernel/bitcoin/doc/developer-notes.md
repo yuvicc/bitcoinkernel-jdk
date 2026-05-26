@@ -164,7 +164,7 @@ To run clang-tidy on Ubuntu/Debian, install the dependencies:
 apt install clang-tidy clang
 ```
 
-Configure with clang as the compiler:
+Configure with clang as the compiler with the below command that should create a `compile_commands.json` file within the build directory:
 
 ```sh
 cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -172,11 +172,18 @@ cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXP
 
 The output is denoised of errors from external dependencies.
 
-To run clang-tidy on all source files:
+To run clang-tidy on all source files using the checks mentioned in the `./src/.clang-tidy` file:
 
 ```sh
 ( cd ./src/ && run-clang-tidy -p ../build -j $(nproc) )
 ```
+
+To run clang-tidy on one file:
+```sh
+( cd ./src/ && run-clang-tidy -p ../build -j $(nproc) ./path/to/single_file.cpp )
+```
+
+Optionally, append the `run-clang-tidy` command with the `-quiet` option to suppress printing of statistics and ignored warnings that can clutter the output. The `-fix` option also comes in handy to apply the fixes suggested by the tool but need to ensure that unrelated changes in the file are not committed.
 
 To run clang-tidy on the changed source lines:
 
@@ -225,16 +232,15 @@ To describe a class, use the same construct above the class definition:
 class CAlert
 ```
 
-To describe a member or variable use:
+To describe a member or variable, place the comment on the line(s) before it, using `/**` and `*/`, `//!`, or `///`:
 ```c++
 //! Description before the member
 int var;
 ```
 
-or
-```c++
-int var; //!< Description after the member
-```
+Avoid trailing (inline) member comments like `int var; //!< Description after the member`.
+
+  - *Rationale*: Forgetting the `<` silently breaks Doxygen output.
 
 Also OK:
 ```c++
@@ -304,37 +310,6 @@ as the code may not correspond directly to the source.
 If you need to build exclusively for debugging, set the `-DCMAKE_BUILD_TYPE`
 to `Debug` (i.e. `-DCMAKE_BUILD_TYPE=Debug`). You can always check the cmake
 build options of an existing build with `ccmake build`.
-
-### Show sources in debugging
-
-If you have ccache enabled, absolute paths are stripped from debug information
-with the `-fdebug-prefix-map` and `-fmacro-prefix-map` options (if supported by the
-compiler). This might break source file detection in case you move binaries
-after compilation, debug from the directory other than the project root or use
-an IDE that only supports absolute paths for debugging (e.g. it won't stop at breakpoints).
-
-There are a few possible fixes:
-
-1. Configure source file mapping.
-
-For `gdb` create or append to [`.gdbinit` file](https://sourceware.org/gdb/current/onlinedocs/gdb#gdbinit-man):
-```
-set substitute-path ./src /path/to/project/root/src
-```
-
-For `lldb` create or append to [`.lldbinit` file](https://lldb.llvm.org/man/lldb.html#configuration-files):
-```
-settings set target.source-map ./src /path/to/project/root/src
-```
-
-2. Add a symlink to the `./src` directory:
-```
-ln -s /path/to/project/root/src src
-```
-
-3. Use `debugedit` to modify debug information in the binary.
-
-4. If your IDE has an option for this, change your breakpoints to use the file name only.
 
 ### debug.log
 
@@ -415,13 +390,13 @@ other input.
 
 Valgrind is a programming tool for memory debugging, memory leak detection, and
 profiling. The repo contains a Valgrind suppressions file
-([`valgrind.supp`](https://github.com/bitcoin/bitcoin/blob/master/contrib/valgrind.supp))
+([`valgrind.supp`](/test/sanitizer_suppressions/valgrind.supp))
 which includes known Valgrind warnings in our dependencies that cannot be fixed
 in-tree. Example use:
 
 ```shell
-$ valgrind --suppressions=contrib/valgrind.supp build/bin/test_bitcoin
-$ valgrind --suppressions=contrib/valgrind.supp --leak-check=full \
+$ valgrind --suppressions=test/sanitizer_suppressions/valgrind.supp build/bin/test_bitcoin
+$ valgrind --suppressions=test/sanitizer_suppressions/valgrind.supp --leak-check=full \
       --show-leak-kinds=all build/bin/test_bitcoin --log_level=test_suite
 $ valgrind -v --leak-check=full build/bin/bitcoind -printtoconsole
 $ ./build/test/functional/test_runner.py --valgrind
@@ -489,7 +464,8 @@ LLVM_PROFILE_FILE="$(pwd)/build/raw_profile_data/%m_%p.profraw" ctest --test-dir
 LLVM_PROFILE_FILE="$(pwd)/build/raw_profile_data/%m_%p.profraw" build/test/functional/test_runner.py # Append "-j N" here for N parallel jobs
 
 # Merge all the raw profile data into a single file
-find build/raw_profile_data -name "*.profraw" | xargs llvm-profdata merge -o build/coverage.profdata
+find build/raw_profile_data -name "*.profraw" > build/raw_profile_data_files.txt
+llvm-profdata merge -f build/raw_profile_data_files.txt -o build/coverage.profdata
 ```
 
 > **Note:** The "counter mismatch" warning can be safely ignored, though it can be resolved by updating to Clang 19.
@@ -557,6 +533,38 @@ llvm-cov show \
 ```
 
 The generated coverage report can be accessed at `build/coverage_report/index.html`.
+
+### Using IWYU
+
+The [`include-what-you-use`](https://github.com/include-what-you-use/include-what-you-use) tool (IWYU)
+helps to enforce the source code organization [policy](#source-code-organization) in this repository.
+
+To reproduce the IWYU CI job locally, run:
+```bash
+env -i HOME="$HOME" PATH="$PATH" USER="$USER" MAKEJOBS="-j1" FILE_ENV="./ci/test/00_setup_env_native_iwyu.sh" ./ci/test_run_all.sh || echo "IWYU failed"
+```
+
+In some cases, IWYU might suggest headers that seem unnecessary at first glance, but are actually required.
+For example, a macro may use a symbol that requires its own include. Another example is passing a string literal
+to a function that accepts a `std::string` parameter. An implicit conversion occurs at the callsite using the
+`std::string` constructor, which makes the corresponding header required. We accept these suggestions as is.
+
+If the provided IWYU CI job still produces a false positive, reduce it to a minimal reproducer and report it upstream.
+
+Use IWYU pragmas sparingly.
+
+Use `IWYU pragma: keep` only as a narrow workaround when needed.
+
+Use `IWYU pragma: associated` only when IWYU cannot infer the intended associated header.
+
+Use `IWYU pragma: export` very sparingly, as this enforces transitive inclusion of headers and undermines the specific purpose of IWYU.
+
+The acceptable cases for using `IWYU pragma: export` are:
+1. Facade headers. For example, see [`compat/compat.h`](/src/compat/compat.h).
+2. Drop-in replacement headers. For example, see [`util/time.h`](/src/util/time.h).
+3. Presenting a complete interface across multiple headers.
+
+For IWYU pragmas, prefer adding a nearby source comment that explains why the annotation is needed.
 
 ### Performance profiling with perf
 
@@ -688,7 +696,7 @@ and its `cs_KeyStore` lock for example).
 - [ThreadHTTP (`b-http`)](https://doxygen.bitcoincore.org/httpserver_8cpp.html#abb9f6ea8819672bd9a62d3695070709c)
   : Libevent thread to listen for RPC and REST connections.
 
-- [HTTP worker threads(`b-httpworker.x`)](https://doxygen.bitcoincore.org/httpserver_8cpp.html#aa6a7bc27265043bc0193220c5ae3a55f)
+- [HTTP worker threads (`b-http_pool_x`)](https://doxygen.bitcoincore.org/httpserver_8cpp.html#a2ad0a49dc9b5e8117c0dee98c24187d8)
   : Threads to service RPC and REST requests.
 
 - [Indexer threads (`b-txindex`, etc)](https://doxygen.bitcoincore.org/class_base_index.html#a96a7407421fbf877509248bbe64f8d87)
@@ -746,14 +754,12 @@ logging messages. They should be used as follows:
   most of the time, and it should be used for log messages that are
   useful for debugging and can reasonably be enabled on a production
   system (that has sufficient free storage space). They will be logged
-  if the program is started with `-debug=category` or `-debug=1`.
+  if the program is started with `-debug=category` or `-debug=1`, or
+  the category is enabled through the `logging` RPC.
 
 - `LogInfo(fmt, params...)` should only be used rarely, e.g. for startup
   messages or for infrequent and important events such as a new block tip
-  being found or a new outbound connection being made. These log messages
-  are unconditional, so care must be taken that they can't be used by an
-  attacker to fill up storage. Note that `LogPrintf(fmt, params...)` is
-  a deprecated alias for `LogInfo`.
+  being found or a new outbound connection being made.
 
 - `LogError(fmt, params...)` should be used in place of `LogInfo` for
   severe problems that require the node (or a subsystem) to shut down
@@ -774,6 +780,13 @@ logging messages. They should be used as follows:
 Note that the format strings and parameters of `LogDebug` and `LogTrace`
 are only evaluated if the logging category is enabled, so you must be
 careful to avoid side-effects in those expressions.
+
+While `LogInfo`, `LogWarning` and `LogError` messages should be rare,
+in case there are circumstances where they are not, those messages
+are automatically rate-limited to prevent potential disk-filling
+attacks. For the cases where this protection is undesirable,
+rate-limiting can be avoided with the `util::log::NO_RATE_LIMIT` tag, eg
+`LogInfo(util::log::NO_RATE_LIMIT, "UpdateTip: new best=%s ...",...)`.
 
 ## General C++
 
@@ -807,7 +820,7 @@ Common misconceptions are clarified in those sections:
 - Do not compare an iterator from one data structure with an iterator of
   another data structure (even if of the same type).
 
-  - *Rationale*: Behavior is undefined. In C++ parlor this means "may reformat
+  - *Rationale*: Behavior is undefined. In C++ parlance this means "may reformat
     the universe", in practice this has resulted in at least one hard-to-debug crash bug.
 
 - Watch out for out-of-bounds vector access. `&vch[vch.size()]` is illegal,
@@ -871,19 +884,19 @@ Foo(vec);
 enum class Tabs {
     info,
     console,
-    network_graph,
-    peers
 };
 
 int GetInt(Tabs tab)
 {
-    switch (tab) {
-    case Tabs::info: return 0;
-    case Tabs::console: return 1;
-    case Tabs::network_graph: return 2;
-    case Tabs::peers: return 3;
-    } // no default case, so the compiler can warn about missing cases
-    assert(false);
+    int ret = [&]() {
+        switch (tab) {
+        case Tabs::info: return 0;
+        case Tabs::console: return 1;
+        } // no default case, so the compiler can warn about missing cases
+        assert(false);
+    }();
+    LogInfo("Tab %s", ret);
+    return ret;
 }
 ```
 
@@ -1058,7 +1071,7 @@ Write scripts in Python or Rust rather than bash, when possible.
 
   - *Rationale*: Excluding headers because they are already indirectly included results in compilation
     failures when those indirect dependencies change. Furthermore, it obscures what the real code
-    dependencies are.
+    dependencies are. The [Using IWYU](#using-iwyu) section describes a tool to help enforce this.
 
 - Don't import anything into the global namespace (`using namespace ...`). Use
   fully specified types such as `std::string`.
@@ -1428,9 +1441,9 @@ communication:
   using TipChangedFn = std::function<void(int block_height, int64_t block_time)>;
   virtual std::unique_ptr<interfaces::Handler> handleTipChanged(TipChangedFn fn) = 0;
 
-  // Bad: returns boost connection specific to local process
+  // Bad: returns btcsignals connection specific to local process
   using TipChangedFn = std::function<void(int block_height, int64_t block_time)>;
-  virtual boost::signals2::scoped_connection connectTipChanged(TipChangedFn fn) = 0;
+  virtual btcsignals::scoped_connection connectTipChanged(TipChangedFn fn) = 0;
   ```
 
 - Interface methods should not be overloaded.

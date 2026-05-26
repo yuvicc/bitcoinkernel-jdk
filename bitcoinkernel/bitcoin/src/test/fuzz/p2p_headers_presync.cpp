@@ -8,7 +8,6 @@
 #include <net_processing.h>
 #include <netmessagemaker.h>
 #include <node/peerman_args.h>
-#include <pow.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
 #include <test/fuzz/util.h>
@@ -97,7 +96,7 @@ void HeadersSyncSetup::SendMessage(FuzzedDataProvider& fuzzed_data_provider, CSe
         connman.ProcessMessagesOnce(connection);
     } catch (const std::ios_base::failure&) {
     }
-    m_node.peerman->SendMessages(&connection);
+    m_node.peerman->SendMessages(connection);
 }
 
 CBlockHeader ConsumeHeader(FuzzedDataProvider& fuzzed_data_provider, const uint256& prev_hash, uint32_t prev_nbits)
@@ -121,7 +120,7 @@ CBlockHeader ConsumeHeader(FuzzedDataProvider& fuzzed_data_provider, const uint2
         arith_uint256 target = ConsumeArithUInt256InRange(fuzzed_data_provider, lower_target, upper_target);
         header.nBits = target.GetCompact();
     }
-    header.nTime = ConsumeTime(fuzzed_data_provider);
+    header.nTime = TicksSinceEpoch<std::chrono::seconds>(ConsumeTime(fuzzed_data_provider));
     header.hashPrevBlock = prev_hash;
     header.nVersion = fuzzed_data_provider.ConsumeIntegral<int32_t>();
     return header;
@@ -141,13 +140,6 @@ CBlock ConsumeBlock(FuzzedDataProvider& fuzzed_data_provider, const uint256& pre
     block.vtx.push_back(MakeTransactionRef(tx));
     block.hashMerkleRoot = block.vtx[0]->GetHash().ToUint256();
     return block;
-}
-
-void FinalizeHeader(CBlockHeader& header, const ChainstateManager& chainman)
-{
-    while (!CheckProofOfWork(header.GetHash(), header.nBits, chainman.GetParams().GetConsensus())) {
-        ++(header.nNonce);
-    }
 }
 
 // Global setup works for this test as state modification (specifically in the
@@ -172,11 +164,11 @@ FUZZ_TARGET(p2p_headers_presync, .init = initialize)
     FuzzedDataProvider fuzzed_data_provider{buffer.data(), buffer.size()};
     // The steady clock is currently only used for logging, so a constant
     // time-point seems acceptable for now.
-    ElapseSteady elapse_steady{};
+    SteadyClockContext steady_ctx{};
 
     ChainstateManager& chainman = *g_testing_setup->m_node.chainman;
     CBlockHeader base{chainman.GetParams().GenesisBlock()};
-    SetMockTime(base.nTime);
+    const NodeClockContext clock_ctx{base.Time()};
 
     LOCK(NetEventsInterface::g_msgproc_mutex);
 

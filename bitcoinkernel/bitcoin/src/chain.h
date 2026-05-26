@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2009-present The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -39,14 +39,6 @@ static constexpr int64_t TIMESTAMP_WINDOW = MAX_FUTURE_BLOCK_TIME;
 static constexpr int32_t SEQ_ID_BEST_CHAIN_FROM_DISK = 0;
 static constexpr int32_t SEQ_ID_INIT_FROM_DISK = 1;
 
-/**
- * Maximum gap between node time and block time used
- * for the "Catching up..." mode in GUI.
- *
- * Ref: https://github.com/bitcoin/bitcoin/pull/1026
- */
-static constexpr int64_t MAX_BLOCK_TIME_GAP = 90 * 60;
-
 enum BlockStatus : uint32_t {
     //! Unused.
     BLOCK_VALID_UNKNOWN      =    0,
@@ -85,8 +77,7 @@ enum BlockStatus : uint32_t {
     BLOCK_HAVE_MASK          =   BLOCK_HAVE_DATA | BLOCK_HAVE_UNDO,
 
     BLOCK_FAILED_VALID       =   32, //!< stage after last reached validness failed
-    BLOCK_FAILED_CHILD       =   64, //!< descends from failed block
-    BLOCK_FAILED_MASK        =   BLOCK_FAILED_VALID | BLOCK_FAILED_CHILD,
+    BLOCK_FAILED_CHILD       =   64, //!< Unused flag that was previously set when descending from failed block
 
     BLOCK_OPT_WITNESS        =   128, //!< block data in blk*.dat was received with a witness-enforcing client
 
@@ -261,7 +252,7 @@ public:
     {
         AssertLockHeld(::cs_main);
         assert(!(nUpTo & ~BLOCK_VALID_MASK)); // Only validity flags allowed.
-        if (nStatus & BLOCK_FAILED_MASK)
+        if (nStatus & BLOCK_FAILED_VALID)
             return false;
         return ((nStatus & BLOCK_VALID_MASK) >= nUpTo);
     }
@@ -272,7 +263,7 @@ public:
     {
         AssertLockHeld(::cs_main);
         assert(!(nUpTo & ~BLOCK_VALID_MASK)); // Only validity flags allowed.
-        if (nStatus & BLOCK_FAILED_MASK) return false;
+        if (nStatus & BLOCK_FAILED_VALID) return false;
 
         if ((nStatus & BLOCK_VALID_MASK) < nUpTo) {
             nStatus = (nStatus & ~BLOCK_VALID_MASK) | nUpTo;
@@ -307,7 +298,15 @@ protected:
     CBlockIndex& operator=(CBlockIndex&&) = delete;
 };
 
-arith_uint256 GetBlockProof(const CBlockIndex& block);
+/** Compute how much work an nBits value corresponds to. */
+arith_uint256 GetBitsProof(uint32_t bits);
+
+/** Compute how much work a block index entry corresponds to. */
+inline arith_uint256 GetBlockProof(const CBlockIndex& block) { return GetBitsProof(block.nBits); }
+
+/** Compute how much work a block header corresponds to. */
+inline arith_uint256 GetBlockProof(const CBlockHeader& header) { return GetBitsProof(header.nBits); }
+
 /** Return the time it would take to redo the work difference between from and to, assuming the current hashrate corresponds to the difficulty at tip, in seconds. */
 int64_t GetBlockProofEquivalentTime(const CBlockIndex& to, const CBlockIndex& from, const CBlockIndex& tip, const Consensus::Params&);
 /** Find the forking point between two chain tips. */
@@ -408,16 +407,16 @@ public:
     }
 
     /** Efficiently check whether a block is present in this chain. */
-    bool Contains(const CBlockIndex* pindex) const
+    bool Contains(const CBlockIndex& index) const
     {
-        return (*this)[pindex->nHeight] == pindex;
+        return (*this)[index.nHeight] == &index;
     }
 
     /** Find the successor of a block in this chain, or nullptr if the given index is not found or is the tip. */
-    CBlockIndex* Next(const CBlockIndex* pindex) const
+    CBlockIndex* Next(const CBlockIndex& index) const
     {
-        if (Contains(pindex))
-            return (*this)[pindex->nHeight + 1];
+        if (Contains(index))
+            return (*this)[index.nHeight + 1];
         else
             return nullptr;
     }
@@ -428,11 +427,20 @@ public:
         return int(vChain.size()) - 1;
     }
 
+    /** Check whether this chain's tip exists, has enough work, and is recent. */
+    bool IsTipRecent(const arith_uint256& min_chain_work, std::chrono::seconds max_tip_age) const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+    {
+        const auto tip{Tip()};
+        return tip &&
+               tip->nChainWork >= min_chain_work &&
+               tip->Time() >= Now<NodeSeconds>() - max_tip_age;
+    }
+
     /** Set/initialize a chain with a given tip. */
     void SetTip(CBlockIndex& block);
 
     /** Find the last common block between this chain and a block index entry. */
-    const CBlockIndex* FindFork(const CBlockIndex* pindex) const;
+    const CBlockIndex* FindFork(const CBlockIndex& index) const;
 
     /** Find the earliest block with timestamp equal or greater than the given time and height equal or greater than the given height. */
     CBlockIndex* FindEarliestAtLeast(int64_t nTime, int height) const;

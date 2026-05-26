@@ -18,6 +18,14 @@ import static org.bitcoinkernel.Transactions.*;
  */
 public class BitcoinKernel implements AutoCloseable {
 
+    static {
+        try {
+            System.loadLibrary("bitcoinkernel");
+        } catch (UnsatisfiedLinkError e) {
+            // This can happen if the library is not in the search path.
+        }
+    }
+
     // Script Verification Flags - delegate to KernelTypes
     public static final int VERIFY_NONE = KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_NONE;
     public static final int VERIFY_P2SH = KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_P2SH;

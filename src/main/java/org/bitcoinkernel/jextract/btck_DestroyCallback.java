@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_DestroyCallback)(void *)
  * }
  */
-public final class btck_DestroyCallback {
+public class btck_DestroyCallback {
 
-    private btck_DestroyCallback() {
+    btck_DestroyCallback() {
         // Should not be called directly
     }
 
@@ -56,11 +56,9 @@ public final class btck_DestroyCallback {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

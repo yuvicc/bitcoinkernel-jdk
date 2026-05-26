@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_NotifyFatalError)(void *, const char *, size_t)
  * }
  */
-public final class btck_NotifyFatalError {
+public class btck_NotifyFatalError {
 
-    private btck_NotifyFatalError() {
+    btck_NotifyFatalError() {
         // Should not be called directly
     }
 
@@ -58,11 +58,9 @@ public final class btck_NotifyFatalError {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data, MemorySegment message, long message_len) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data, MemorySegment message, long message_len) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data, message, message_len);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

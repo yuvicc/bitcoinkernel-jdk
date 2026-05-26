@@ -17,9 +17,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  * typedef void (*btck_LogCallback)(void *, const char *, size_t)
  * }
  */
-public final class btck_LogCallback {
+public class btck_LogCallback {
 
-    private btck_LogCallback() {
+    btck_LogCallback() {
         // Should not be called directly
     }
 
@@ -58,11 +58,9 @@ public final class btck_LogCallback {
     /**
      * Invoke the upcall stub {@code funcPtr}, with given parameters
      */
-    public static void invoke(MemorySegment funcPtr, MemorySegment user_data, MemorySegment message, long message_len) {
+    public static void invoke(MemorySegment funcPtr,MemorySegment user_data, MemorySegment message, long message_len) {
         try {
              DOWN$MH.invokeExact(funcPtr, user_data, message, message_len);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }
