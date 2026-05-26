@@ -95,6 +95,14 @@ public class Chainstate {
             }
         }
 
+        public ConsensusParams getConsensusParams() {
+            MemorySegment consensusPtr = btck_chain_parameters_get_consensus_params(inner);
+            if (isNull(consensusPtr)) {
+                return null;
+            }
+            return new ConsensusParams(consensusPtr);
+        }
+
         MemorySegment getInner() {
             return inner;
         }
@@ -105,6 +113,18 @@ public class Chainstate {
                 btck_chain_parameters_destroy(inner);
                 inner = MemorySegment.NULL;
             }
+        }
+    }
+
+    public static class ConsensusParams {
+        private final MemorySegment inner;
+
+        ConsensusParams(MemorySegment inner) {
+            this.inner = inner;
+        }
+
+        MemorySegment getInner() {
+            return inner;
         }
     }
 
