@@ -7,24 +7,24 @@
 
 #include <init.h>
 
-#include <kernel/checks.h>
-
+#include <addrdb.h>
 #include <addrman.h>
 #include <banman.h>
 #include <blockfilter.h>
-#include <btcsignals.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <chainparamsbase.h>
 #include <clientversion.h>
 #include <common/args.h>
+#include <common/messages.h>
 #include <common/system.h>
-#include <consensus/amount.h>
-#include <consensus/consensus.h>
-#include <deploymentstatus.h>
-#include <hash.h>
+#include <compat/compat.h>
+#include <consensus/params.h>
+#include <crypto/hex_base.h>
+#include <dbwrapper.h>
 #include <httprpc.h>
 #include <httpserver.h>
+#include <index/base.h>
 #include <index/blockfilterindex.h>
 #include <index/coinstatsindex.h>
 #include <index/txindex.h>
@@ -36,14 +36,19 @@
 #include <interfaces/mining.h>
 #include <interfaces/node.h>
 #include <ipc/exception.h>
+#include <kernel/blockmanager_opts.h>
 #include <kernel/caches.h>
+#include <kernel/chainstatemanager_opts.h>
+#include <kernel/checks.h>
 #include <kernel/context.h>
+#include <kernel/notifications_interface.h>
 #include <key.h>
 #include <logging.h>
 #include <mapport.h>
 #include <net.h>
 #include <net_permissions.h>
 #include <net_processing.h>
+#include <netaddress.h>
 #include <netbase.h>
 #include <netgroup.h>
 #include <node/blockmanager_args.h>
@@ -57,7 +62,8 @@
 #include <node/mempool_args.h>
 #include <node/mempool_persist.h>
 #include <node/mempool_persist_args.h>
-#include <node/miner.h>
+#include <node/mining_args.h>
+#include <node/mining_types.h>
 #include <node/peerman_args.h>
 #include <policy/feerate.h>
 #include <policy/fees/block_policy_estimator.h>
@@ -65,19 +71,21 @@
 #include <policy/policy.h>
 #include <policy/settings.h>
 #include <protocol.h>
-#include <rpc/blockchain.h>
+#include <random.h>
 #include <rpc/register.h>
 #include <rpc/server.h>
 #include <rpc/util.h>
 #include <scheduler.h>
 #include <script/sigcache.h>
 #include <sync.h>
+#include <tinyformat.h>
 #include <torcontrol.h>
-#include <txdb.h>
+#include <txgraph.h>
 #include <txmempool.h>
+#include <uint256.h>
 #include <util/asmap.h>
 #include <util/batchpriority.h>
-#include <util/byte_units.h>
+#include <util/btcsignals.h>
 #include <util/chaintype.h>
 #include <util/check.h>
 #include <util/fs.h>
@@ -97,21 +105,31 @@
 #include <walletinitinterface.h>
 
 #include <algorithm>
+#include <any>
 #include <cerrno>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
+#include <exception>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
+#include <list>
+#include <memory>
+#include <new>
+#include <optional>
 #include <set>
+#include <span>
 #include <string>
+#include <system_error>
 #include <thread>
+#include <tuple>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #ifndef WIN32
 #include <csignal>
-#include <sys/stat.h>
 #endif
 
 #ifdef ENABLE_ZMQ
@@ -124,10 +142,13 @@
 #include <node/data/ip_asn.dat.h>
 #endif
 
-using common::AmountErrMsg;
 using common::InvalidPortErrMsg;
 using common::ResolveErrMsg;
 
+using http_bitcoin::InitHTTPServer;
+using http_bitcoin::InterruptHTTPServer;
+using http_bitcoin::StartHTTPServer;
+using http_bitcoin::StopHTTPServer;
 using node::ApplyArgsManOptions;
 using node::BlockManager;
 using node::CalculateCacheSizes;
@@ -753,7 +774,7 @@ static void StartupNotify(const ArgsManager& args)
 static bool AppInitServers(NodeContext& node)
 {
     const ArgsManager& args = *Assert(node.args);
-    if (!InitHTTPServer(*Assert(node.shutdown_signal))) {
+    if (!InitHTTPServer()) {
         return false;
     }
     StartRPC();
@@ -1074,27 +1095,9 @@ bool AppInitParameterInteraction(const ArgsManager& args)
         return InitError(Untranslated("peertimeout must be a positive integer."));
     }
 
-    if (const auto arg{args.GetArg("-blockmintxfee")}) {
-        if (!ParseMoney(*arg)) {
-            return InitError(AmountErrMsg("blockmintxfee", *arg));
-        }
-    }
-
-    {
-        const auto max_block_weight = args.GetIntArg("-blockmaxweight", DEFAULT_BLOCK_MAX_WEIGHT);
-        if (max_block_weight > MAX_BLOCK_WEIGHT) {
-            return InitError(strprintf(_("Specified -blockmaxweight (%d) exceeds consensus maximum block weight (%d)"), max_block_weight, MAX_BLOCK_WEIGHT));
-        }
-    }
-
-    {
-        const auto block_reserved_weight = args.GetIntArg("-blockreservedweight", DEFAULT_BLOCK_RESERVED_WEIGHT);
-        if (block_reserved_weight > MAX_BLOCK_WEIGHT) {
-            return InitError(strprintf(_("Specified -blockreservedweight (%d) exceeds consensus maximum block weight (%d)"), block_reserved_weight, MAX_BLOCK_WEIGHT));
-        }
-        if (block_reserved_weight < MINIMUM_BLOCK_RESERVED_WEIGHT) {
-            return InitError(strprintf(_("Specified -blockreservedweight (%d) is lower than minimum safety value of (%d)"), block_reserved_weight, MINIMUM_BLOCK_RESERVED_WEIGHT));
-        }
+    auto mining_result{node::ReadMiningArgs(args)};
+    if (!mining_result) {
+        return InitError(util::ErrorString(mining_result));
     }
 
     nBytesPerSigOp = args.GetIntArg("-bytespersigop", nBytesPerSigOp);
@@ -1122,6 +1125,16 @@ bool AppInitParameterInteraction(const ArgsManager& args)
             if (it == TEST_OPTIONS_DOC.end()) {
                 InitWarning(strprintf(_("Unrecognised option \"%s\" provided in -test=<option>."), option));
             }
+        }
+    }
+
+    // Prevent setting deployment parameters on mainnet.
+    if (chainparams.GetChainType() == ChainType::MAIN) {
+        if (args.IsArgSet("-testactivationheight")) {
+            return InitError(_("The -testactivationheight option may not be used on mainnet."));
+        }
+        if (args.IsArgSet("-vbparams")) {
+            return InitError(_("The -vbparams option may not be used on mainnet."));
         }
     }
 
@@ -1328,6 +1341,9 @@ static ChainstateLoadResult InitAndLoadChainstate(
     if (!mempool_error.empty()) {
         return {ChainstateLoadStatus::FAILURE_FATAL, mempool_error};
     }
+    auto mining_args{node::ReadMiningArgs(args)};
+    Assert(mining_args); // no error can happen, already checked in AppInitParameterInteraction
+    node.mining_args = std::move(*mining_args);
     LogInfo("* Using %.1f MiB for in-memory UTXO set (plus up to %.1f MiB of unused mempool space)",
             cache_sizes.coins / double(1_MiB),
             mempool_opts.max_size_bytes / double(1_MiB));
@@ -1561,7 +1577,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
      * be disabled when initialisation is finished.
      */
     if (args.GetBoolArg("-server", false)) {
-        uiInterface.InitMessage_connect(SetRPCWarmupStatus);
+        uiInterface.InitMessage.connect(SetRPCWarmupStatus);
         if (!AppInitServers(node))
             return InitError(_("Unable to start HTTP server. See debug log for details."));
     }
@@ -2013,7 +2029,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 #if HAVE_SYSTEM
     const std::string block_notify = args.GetArg("-blocknotify", "");
     if (!block_notify.empty()) {
-        uiInterface.NotifyBlockTip_connect([block_notify](SynchronizationState sync_state, const CBlockIndex& block, double /* verification_progress */) {
+        uiInterface.NotifyBlockTip.connect([block_notify](SynchronizationState sync_state, const CBlockIndex& block, double /* verification_progress */) {
             if (sync_state != SynchronizationState::POST_INIT) return;
             std::string command = block_notify;
             ReplaceAll(command, "%s", block.GetBlockHash().GetHex());
@@ -2028,6 +2044,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         vImportFiles.push_back(fs::PathFromString(strFile));
     }
 
+    /// \anchor initload
     node.background_init_thread = std::thread(&util::TraceThread, "initload", [=, &chainman, &args, &node] {
         ScheduleBatchPriority();
         // Import blocks and ActivateBestChain()

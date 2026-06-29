@@ -4,25 +4,45 @@
 
 #include <addresstype.h>
 #include <blockfilter.h>
-#include <chainparams.h>
+#include <chain.h>
 #include <consensus/merkle.h>
 #include <consensus/validation.h>
+#include <index/base.h>
 #include <index/blockfilterindex.h>
 #include <interfaces/chain.h>
-#include <node/miner.h>
+#include <interfaces/mining.h>
+#include <key.h>
+#include <node/blockstorage.h>
 #include <pow.h>
+#include <primitives/block.h>
+#include <primitives/transaction.h>
+#include <script/script.h>
+#include <sync.h>
 #include <test/util/blockfilter.h>
 #include <test/util/common.h>
 #include <test/util/setup_common.h>
-#include <util/byte_units.h>
+#include <test/util/time.h>
+#include <tinyformat.h>
+#include <uint256.h>
+#include <util/check.h>
+#include <util/fs.h>
 #include <validation.h>
 
 #include <boost/test/unit_test.hpp>
-#include <future>
 
-using node::BlockAssembler;
+#include <compare>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <future>
+#include <memory>
+#include <span>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
 using node::BlockManager;
-using node::CBlockTemplate;
 
 BOOST_AUTO_TEST_SUITE(blockfilter_index_tests)
 
@@ -69,10 +89,12 @@ CBlock BuildChainTestingSetup::CreateBlock(const CBlockIndex* prev,
     const std::vector<CMutableTransaction>& txns,
     const CScript& scriptPubKey)
 {
-    BlockAssembler::Options options;
-    options.coinbase_output_script = scriptPubKey;
-    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler{m_node.chainman->ActiveChainstate(), m_node.mempool.get(), options}.CreateNewBlock();
-    CBlock& block = pblocktemplate->block;
+    auto mining{interfaces::MakeMining(m_node)};
+    auto block_template{mining->createNewBlock({
+        .coinbase_output_script = scriptPubKey,
+    }, /*cooldown=*/false)};
+    BOOST_REQUIRE(block_template);
+    CBlock block{block_template->getBlock()};
     block.hashPrevBlock = prev->GetBlockHash();
     block.nTime = prev->nTime + 1;
 
@@ -310,14 +332,14 @@ BOOST_FIXTURE_TEST_CASE(blockfilter_index_init_destroy, BasicTestingSetup)
 class IndexReorgCrash : public BaseIndex
 {
 private:
+    FakeNodeClock& m_clock;
     std::unique_ptr<BaseIndex::DB> m_db;
     std::shared_future<void> m_blocker;
     int m_blocking_height;
 
 public:
-    explicit IndexReorgCrash(std::unique_ptr<interfaces::Chain> chain, std::shared_future<void> blocker,
-                             int blocking_height) : BaseIndex(std::move(chain), "test index"), m_blocker(blocker),
-                                                    m_blocking_height(blocking_height)
+    explicit IndexReorgCrash(std::unique_ptr<interfaces::Chain> chain, std::shared_future<void> blocker, int blocking_height, FakeNodeClock& clock)
+        : BaseIndex(std::move(chain), "test index", "testidx"), m_clock(clock), m_blocker(blocker), m_blocking_height(blocking_height)
     {
         const fs::path path = gArgs.GetDataDirNet() / "index";
         fs::create_directories(path);
@@ -334,7 +356,7 @@ public:
 
         // Move mock time forward so the best index gets updated only when we are not at the blocking height
         if (block.height == m_blocking_height - 1 || block.height > m_blocking_height) {
-            SetMockTime(GetTime<std::chrono::seconds>() + 31s);
+            m_clock += 31s;
         }
 
         return true;
@@ -343,14 +365,11 @@ public:
 
 BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
 {
-    // Enable mock time
-    SetMockTime(GetTime<std::chrono::minutes>());
-
     std::promise<void> promise;
     std::shared_future<void> blocker(promise.get_future());
     int blocking_height = WITH_LOCK(cs_main, return m_node.chainman->ActiveChain().Tip()->nHeight);
 
-    IndexReorgCrash index(interfaces::MakeChain(m_node), blocker, blocking_height);
+    IndexReorgCrash index{interfaces::MakeChain(m_node), blocker, blocking_height, m_clock};
     BOOST_REQUIRE(index.Init());
     BOOST_REQUIRE(index.StartBackgroundSync());
 
