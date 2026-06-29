@@ -84,49 +84,6 @@ public class KernelTypes {
         }
     }
 
-    // ===== Script Verify Status =====
-    public enum ScriptVerifyStatus {
-        OK(btck_ScriptVerifyStatus_OK()),
-        ERROR_INVALID_FLAGS_COMBINATION(btck_ScriptVerifyStatus_ERROR_INVALID_FLAGS_COMBINATION()),
-        ERROR_SPENT_OUTPUTS_REQUIRED(btck_ScriptVerifyStatus_ERROR_SPENT_OUTPUTS_REQUIRED());
-
-        private final byte value;
-
-        ScriptVerifyStatus(byte value) {
-            this.value = value;
-        }
-
-        public byte getValue() {
-            return value;
-        }
-
-        public static ScriptVerifyStatus fromByte(byte value) {
-            for (ScriptVerifyStatus status : values()) {
-                if (status.value == value) {
-                    return status;
-                }
-            }
-            throw new IllegalArgumentException("Invalid ScriptVerifyStatus: " + value);
-        }
-    }
-
-    // ===== Script Verification Flags =====
-    public static class ScriptVerificationFlags {
-        public static final int SCRIPT_VERIFY_NONE = btck_ScriptVerificationFlags_NONE();
-        public static final int SCRIPT_VERIFY_P2SH = btck_ScriptVerificationFlags_P2SH();
-        public static final int SCRIPT_VERIFY_DERSIG = btck_ScriptVerificationFlags_DERSIG();
-        public static final int SCRIPT_VERIFY_NULLDUMMY = btck_ScriptVerificationFlags_NULLDUMMY();
-        public static final int SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY = btck_ScriptVerificationFlags_CHECKLOCKTIMEVERIFY();
-        public static final int SCRIPT_VERIFY_CHECKSEQUENCEVERIFY = btck_ScriptVerificationFlags_CHECKSEQUENCEVERIFY();
-        public static final int SCRIPT_VERIFY_WITNESS = btck_ScriptVerificationFlags_WITNESS();
-        public static final int SCRIPT_VERIFY_TAPROOT = btck_ScriptVerificationFlags_TAPROOT();
-        public static final int SCRIPT_VERIFY_ALL = btck_ScriptVerificationFlags_ALL();
-
-        private ScriptVerificationFlags() {
-            // Utility class, prevent instantiation
-        }
-    }
-
     // ===== Block Check Flags =====
     public static class BlockCheckFlags {
         public static final int BASE = btck_BlockCheckFlags_BASE();
