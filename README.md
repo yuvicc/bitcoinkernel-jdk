@@ -180,7 +180,7 @@ Currently tested on:
 
 ## Current Status
 
-See the project [milestone](https://github.com/yuvicc/java-bitcoinkernel/issues/1) for detailed status and roadmap.
+See the project [milestone]([https://github.com/yuvicc/java-bitcoinkernel/issues/1](https://github.com/yuvicc/bitcoinkernel-jdk/milestones)) for detailed status and roadmap.
 
 ## Contributing
 
