@@ -14,12 +14,13 @@
 #include <net_processing.h>
 #include <netmessagemaker.h>
 #include <node/blockstorage.h>
-#include <node/miner.h>
+#include <node/mining_types.h>
 #include <policy/truc_policy.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <protocol.h>
 #include <script/script.h>
+#include <serialize.h>
 #include <sync.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
@@ -43,7 +44,6 @@
 #include <validationinterface.h>
 
 #include <boost/multi_index/detail/hash_index_iterator.hpp>
-#include <boost/operators.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -52,7 +52,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -121,7 +120,7 @@ void ResetChainmanAndMempool(TestingSetup& setup)
     setup.m_make_chainman();
     setup.LoadVerifyActivateChainstate();
 
-    node::BlockAssembler::Options options;
+    node::BlockCreateOptions options;
     options.coinbase_output_script = P2WSH_OP_TRUE;
 
     g_mature_coinbase.clear();
@@ -164,7 +163,8 @@ FUZZ_TARGET(cmpctblock, .init = initialize_cmpctblock)
     SeedRandomStateForTest(SeedRand::ZEROS);
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
 
-    NodeClockContext clock_ctx{1610000000s};
+    FakeNodeClock clock{1610000000s};
+    FakeSteadyClock steady_clock;
 
     auto setup = g_setup;
     auto& mempool = *setup->m_node.mempool;
@@ -190,7 +190,7 @@ FUZZ_TARGET(cmpctblock, .init = initialize_cmpctblock)
 
     std::vector<CNode*> peers;
     for (int i = 0; i < 4; ++i) {
-        peers.push_back(ConsumeNodeAsUniquePtr(fuzzed_data_provider, i).release());
+        peers.push_back(ConsumeNodeAsUniquePtr(fuzzed_data_provider, steady_clock, i).release());
         CNode& p2p_node = *peers.back();
         FillNode(fuzzed_data_provider, connman, p2p_node);
         connman.AddTestNode(p2p_node);
@@ -454,10 +454,10 @@ FUZZ_TARGET(cmpctblock, .init = initialize_cmpctblock)
             [&]() {
                 // Set mock time randomly or to tip's time.
                 if (fuzzed_data_provider.ConsumeBool()) {
-                    clock_ctx.set(ConsumeTime(fuzzed_data_provider));
+                    clock.set(ConsumeTime(fuzzed_data_provider));
                 } else {
                     const NodeSeconds tip_time = WITH_LOCK(::cs_main, return chainman.ActiveChain().Tip()->Time());
-                    clock_ctx.set(tip_time);
+                    clock.set(tip_time);
                 }
 
                 sent_net_msg = false;

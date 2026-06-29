@@ -6,50 +6,68 @@
 
 #include <addrman.h>
 #include <banman.h>
+#include <chain.h>
 #include <chainparams.h>
+#include <coins.h>
 #include <common/system.h>
+#include <consensus/amount.h>
 #include <consensus/consensus.h>
-#include <consensus/params.h>
 #include <consensus/validation.h>
-#include <crypto/sha256.h>
+#include <crypto/hex_base.h>
+#include <dbwrapper.h>
 #include <init.h>
-#include <init/common.h>
 #include <interfaces/chain.h>
-#include <kernel/mempool_entry.h>
+#include <interfaces/mining.h>
+#include <kernel/caches.h>
+#include <kernel/context.h>
+#include <key.h>
 #include <logging.h>
 #include <net.h>
 #include <net_processing.h>
+#include <netbase.h>
+#include <netgroup.h>
 #include <node/blockstorage.h>
 #include <node/chainstate.h>
 #include <node/context.h>
 #include <node/kernel_notifications.h>
-#include <node/mempool_args.h>
 #include <node/miner.h>
+#include <node/mining_args.h>
+#include <node/mining_types.h>
 #include <node/peerman_args.h>
 #include <node/warnings.h>
 #include <noui.h>
-#include <policy/fees/block_policy_estimator.h>
+#include <policy/feerate.h>
+#include <policy/policy.h>
 #include <pow.h>
+#include <primitives/block.h>
+#include <primitives/transaction.h>
 #include <random.h>
-#include <rpc/blockchain.h>
 #include <rpc/register.h>
 #include <rpc/server.h>
 #include <scheduler.h>
-#include <script/sigcache.h>
+#include <script/interpreter.h>
+#include <script/script.h>
+#include <script/sign.h>
+#include <script/signingprovider.h>
+#include <serialize.h>
+#include <span.h>
 #include <streams.h>
+#include <sync.h>
 #include <test/util/coverage.h>
 #include <test/util/net.h>
 #include <test/util/random.h>
-#include <test/util/transaction_utils.h>
 #include <test/util/txmempool.h>
-#include <txdb.h>
+#include <tinyformat.h>
 #include <txmempool.h>
+#include <uint256.h>
 #include <util/chaintype.h>
 #include <util/check.h>
+#include <util/fs.h>
 #include <util/fs_helpers.h>
 #include <util/rbf.h>
+#include <util/result.h>
+#include <util/signalinterrupt.h>
 #include <util/strencodings.h>
-#include <util/string.h>
 #include <util/task_runner.h>
 #include <util/thread.h>
 #include <util/threadnames.h>
@@ -58,16 +76,27 @@
 #include <util/vector.h>
 #include <validation.h>
 #include <validationinterface.h>
-#include <walletinitinterface.h>
 
 #include <algorithm>
-#include <future>
+#include <array>
+#include <atomic>
+#include <cstdlib>
+#include <deque>
 #include <functional>
+#include <future>
+#include <iostream>
+#include <iterator>
+#include <map>
+#include <numeric>
+#include <span>
 #include <stdexcept>
+#include <string_view>
+#include <thread>
+#include <tuple>
+#include <utility>
 
 using namespace util::hex_literals;
 using node::ApplyArgsManOptions;
-using node::BlockAssembler;
 using node::BlockManager;
 using node::KernelNotifications;
 using node::LoadChainstate;
@@ -136,7 +165,6 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, TestOpts opts)
             "-logthreadnames",
             "-loglevel=trace",
             "-debug",
-            "-debugexclude=libevent",
             "-debugexclude=leveldb",
         },
         opts.extra_args);
@@ -335,6 +363,8 @@ void ChainTestingSetup::LoadVerifyActivateChainstate()
     std::tie(status, error) = VerifyLoadedChainstate(chainman, options);
     assert(status == node::ChainstateLoadStatus::SUCCESS);
 
+    m_node.notifications->setChainstateLoaded(true);
+
     BlockValidationState state;
     if (!chainman.ActiveChainstate().ActivateBestChain(state)) {
         throw std::runtime_error(strprintf("ActivateBestChain failed. (%s)", state.ToString()));
@@ -362,6 +392,9 @@ TestingSetup::TestingSetup(
                                                m_node.args->GetIntArg("-checkaddrman", 0));
     m_node.banman = std::make_unique<BanMan>(m_args.GetDataDirBase() / "banlist", nullptr, DEFAULT_MISBEHAVING_BANTIME);
     m_node.connman = std::make_unique<ConnmanTestMsg>(0x1337, 0x1337, *m_node.addrman, *m_node.netgroupman, Params()); // Deterministic randomness for tests.
+    auto mining_args{node::ReadMiningArgs(*m_node.args)};
+    Assert(mining_args);
+    m_node.mining_args = std::move(*mining_args);
     PeerManager::Options peerman_opts;
     ApplyArgsManOptions(*m_node.args, peerman_opts);
     peerman_opts.deterministic_rng = true;
@@ -382,7 +415,6 @@ TestChain100Setup::TestChain100Setup(
     TestOpts opts)
     : TestingSetup{ChainType::REGTEST, opts}
 {
-    SetMockTime(1598887952);
     constexpr std::array<unsigned char, 32> vchKey = {
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}};
     coinbaseKey.Set(vchKey.begin(), vchKey.end(), true);
@@ -404,19 +436,22 @@ void TestChain100Setup::mineBlocks(int num_blocks)
     for (int i = 0; i < num_blocks; i++) {
         std::vector<CMutableTransaction> noTxns;
         CBlock b = CreateAndProcessBlock(noTxns, scriptPubKey);
-        SetMockTime(GetTime() + 1);
+        m_clock += 1s;
         m_coinbase_txns.push_back(b.vtx[0]);
     }
 }
 
 CBlock TestChain100Setup::CreateBlock(
     const std::vector<CMutableTransaction>& txns,
-    const CScript& scriptPubKey,
-    Chainstate& chainstate)
+    const CScript& scriptPubKey)
 {
-    BlockAssembler::Options options;
-    options.coinbase_output_script = scriptPubKey;
-    CBlock block = BlockAssembler{chainstate, nullptr, options}.CreateNewBlock()->block;
+    auto mining{interfaces::MakeMining(m_node)};
+    auto block_template{mining->createNewBlock({
+        .use_mempool = false,
+        .coinbase_output_script = scriptPubKey,
+    }, /*cooldown=*/false)};
+    Assert(block_template);
+    CBlock block{block_template->getBlock()};
 
     Assert(block.vtx.size() == 1);
     for (const CMutableTransaction& tx : txns) {
@@ -431,14 +466,9 @@ CBlock TestChain100Setup::CreateBlock(
 
 CBlock TestChain100Setup::CreateAndProcessBlock(
     const std::vector<CMutableTransaction>& txns,
-    const CScript& scriptPubKey,
-    Chainstate* chainstate)
+    const CScript& scriptPubKey)
 {
-    if (!chainstate) {
-        chainstate = &Assert(m_node.chainman)->ActiveChainstate();
-    }
-
-    CBlock block = this->CreateBlock(txns, scriptPubKey, *chainstate);
+    CBlock block = this->CreateBlock(txns, scriptPubKey);
     std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(block);
     Assert(m_node.chainman)->ProcessNewBlock(shared_pblock, true, true, nullptr);
 
@@ -606,6 +636,43 @@ std::vector<CTransactionRef> TestChain100Setup::PopulateMempool(FastRandomContex
         undo_info.clear();
     }
     return mempool_transactions;
+}
+
+SocketTestingSetup::SocketTestingSetup()
+{
+    // "back up" the current CreateSock() so we can restore it after the test
+    m_create_sock_orig = CreateSock;
+
+    CreateSock = [this](int, int, int) {
+        // This is a mock Listening Socket that a server can "bind" to and
+        // listen to for incoming connections. We won't need to access its I/O
+        // pipes because we don't read or write directly to it. It will return
+        // Connected Sockets from the queue via its Accept() method.
+        return std::make_unique<DynSock>(std::make_shared<DynSock::Pipes>(), &m_accepted_sockets);
+    };
+};
+
+SocketTestingSetup::~SocketTestingSetup()
+{
+    CreateSock = m_create_sock_orig;
+}
+
+std::shared_ptr<DynSock::Pipes> SocketTestingSetup::ConnectClient(std::span<const std::byte> data)
+{
+    // I/O pipes for a mock Connected Socket we can read and write to.
+    auto connected_socket_pipes(std::make_shared<DynSock::Pipes>());
+
+    // Insert the payload
+    connected_socket_pipes->recv.PushBytes(data.data(), data.size());
+
+    // Create the Mock Connected Socket that represents a client.
+    // It needs I/O pipes but its queue can remain empty
+    std::unique_ptr<DynSock> connected_socket{std::make_unique<DynSock>(connected_socket_pipes)};
+
+    // Push into the queue of Accepted Sockets returned by the local CreateSock()
+    m_accepted_sockets.Push(std::move(connected_socket));
+
+    return connected_socket_pipes;
 }
 
 /**
