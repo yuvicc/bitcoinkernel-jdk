@@ -88,6 +88,11 @@ public class Transactions {
             return new Txid(txidPtr);
         }
 
+        public boolean check(TxValidationState state) {
+            checkClosed();
+            return btck_transaction_check(inner, state.getInner()) != 0;
+        }
+
         void checkClosed() {
             if (inner == MemorySegment.NULL) {
                 throw new IllegalStateException("Transaction has been closed");
@@ -420,6 +425,104 @@ public class Transactions {
                 btck_txid_destroy(inner);
                 inner = MemorySegment.NULL;
             }
+        }
+    }
+
+    // ===== Tx Validation State =====
+    public static class TxValidationState implements AutoCloseable {
+        private MemorySegment inner;
+
+        public enum TxValidationResult {
+            UNSET(0),
+            CONSENSUS(1),
+            INPUTS_NOT_STANDARD(2),
+            NOT_STANDARD(3),
+            MISSING_INPUTS(4),
+            PREMATURE_SPEND(5),
+            WITNESS_MUTATED(6),
+            WITNESS_STRIPPED(7),
+            CONFLICT(8),
+            MEMPOOL_POLICY(9),
+            NO_MEMPOOL(10),
+            RECONSIDERABLE(11),
+            UNKNOWN(12);
+
+            private final int value;
+
+            TxValidationResult(int value) {
+                this.value = value;
+            }
+
+            public int getValue() {
+                return value;
+            }
+
+            public static TxValidationResult fromInt(int value) {
+                for (TxValidationResult result : values()) {
+                    if (result.value == value) {
+                        return result;
+                    }
+                }
+                throw new IllegalArgumentException("Invalid TxValidationResult: " + value);
+            }
+        }
+
+        public TxValidationState() {
+            this.inner = btck_tx_validation_state_create.makeInvoker().apply();
+            if (this.inner == MemorySegment.NULL) {
+                throw new RuntimeException("Failed to create TxValidationState");
+            }
+        }
+
+        public Blocks.ValidationMode getValidationMode() {
+            byte mode = btck_tx_validation_state_get_validation_mode(inner);
+            return Blocks.ValidationMode.fromByte(mode);
+        }
+
+        public TxValidationResult getTxValidationResult() {
+            int result = btck_tx_validation_state_get_tx_validation_result(inner);
+            return TxValidationResult.fromInt(result);
+        }
+
+        public boolean isValid() {
+            return getValidationMode() == Blocks.ValidationMode.VALID;
+        }
+
+        public boolean isInvalid() {
+            return getValidationMode() == Blocks.ValidationMode.INVALID;
+        }
+
+        public boolean hasError() {
+            return getValidationMode() == Blocks.ValidationMode.INTERNAL_ERROR;
+        }
+
+        public String getDescription() {
+            Blocks.ValidationMode mode = getValidationMode();
+            if (mode == Blocks.ValidationMode.VALID) {
+                return "Transaction is valid";
+            } else if (mode == Blocks.ValidationMode.INVALID) {
+                return "Transaction is invalid: " + getTxValidationResult().name();
+            } else {
+                return "Internal error during transaction validation";
+            }
+        }
+
+        @Override
+        public String toString() {
+            return String.format("TxValidationState{mode=%s, result=%s}",
+                    getValidationMode(), getTxValidationResult());
+        }
+
+        @Override
+        public void close() {
+            if (inner != MemorySegment.NULL) {
+                btck_tx_validation_state_destroy(inner);
+                inner = MemorySegment.NULL;
+            }
+        }
+
+        MemorySegment getInner() {
+            return inner;
         }
     }
 
