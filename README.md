@@ -1,10 +1,10 @@
-# Bitcoinkernel-JDK ⚠️🚧
+# Bitcoinkernel-JDK
 
-> Java/JDK FFM wrapper for Bitcoin Core's validation engine via [libbitcoinkernel](https://github.com/bitcoin/bitcoin/pull/30595)
+Java/JDK FFM wrapper for Bitcoin Core's validation engine via BitcoinKernel API.
 
-## ⚠️ Status
+## Status
 
-This library is **alpha** - under active development. APIs may change and functionality is still being expanded. Contributions and bug reports are welcome!
+This library is under active development. APIs may change and functionality is still being expanded. Contributions and bug reports are welcome!
 
 ## Overview
 
