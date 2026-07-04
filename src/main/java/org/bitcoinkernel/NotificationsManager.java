@@ -1,7 +1,6 @@
 package org.bitcoinkernel;
 
 import org.bitcoinkernel.KernelTypes;
-import org.bitcoinkernel.KernelData;
 
 import java.lang.foreign.*;
 import java.nio.charset.StandardCharsets;

@@ -1,18 +1,52 @@
 package org.bitcoinkernel;
 
 import java.lang.foreign.*;
-import java.util.Arrays;
 
-import org.bitcoinkernel.KernelTypes;
 import static org.bitcoinkernel.KernelTypes.isNull;
 import static org.bitcoinkernel.jextract.bitcoinkernel_h.*;
 import static org.bitcoinkernel.Transactions.*;
 
+public class Script {
 
-// Data structures for Bitcoin Kernel functions
-public class KernelData {
+    public enum ScriptVerifyStatus {
+        OK(btck_ScriptVerifyStatus_OK()),
+        ERROR_INVALID_FLAGS_COMBINATION(btck_ScriptVerifyStatus_ERROR_INVALID_FLAGS_COMBINATION()),
+        ERROR_SPENT_OUTPUTS_REQUIRED(btck_ScriptVerifyStatus_ERROR_SPENT_OUTPUTS_REQUIRED());
 
-    // ===== ScriptPubkey =====
+        private final byte value;
+
+        ScriptVerifyStatus(byte value) {
+            this.value = value;
+        }
+
+        public byte getValue() {
+            return value;
+        }
+
+        public static ScriptVerifyStatus fromByte(byte value) {
+            for (ScriptVerifyStatus status : values()) {
+                if (status.value == value) {
+                    return status;
+                }
+            }
+            throw new IllegalArgumentException("Invalid ScriptVerifyStatus: " + value);
+        }
+    }
+
+    public static class ScriptVerificationFlags {
+        public static final int SCRIPT_VERIFY_NONE = btck_ScriptVerificationFlags_NONE();
+        public static final int SCRIPT_VERIFY_P2SH = btck_ScriptVerificationFlags_P2SH();
+        public static final int SCRIPT_VERIFY_DERSIG = btck_ScriptVerificationFlags_DERSIG();
+        public static final int SCRIPT_VERIFY_NULLDUMMY = btck_ScriptVerificationFlags_NULLDUMMY();
+        public static final int SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY = btck_ScriptVerificationFlags_CHECKLOCKTIMEVERIFY();
+        public static final int SCRIPT_VERIFY_CHECKSEQUENCEVERIFY = btck_ScriptVerificationFlags_CHECKSEQUENCEVERIFY();
+        public static final int SCRIPT_VERIFY_WITNESS = btck_ScriptVerificationFlags_WITNESS();
+        public static final int SCRIPT_VERIFY_TAPROOT = btck_ScriptVerificationFlags_TAPROOT();
+        public static final int SCRIPT_VERIFY_ALL = btck_ScriptVerificationFlags_ALL();
+
+        private ScriptVerificationFlags() {}
+    }
+
     public static class ScriptPubkey implements AutoCloseable {
         private MemorySegment inner;
         private final Arena arena;
@@ -45,11 +79,10 @@ public class KernelData {
         }
 
         public int verify(long amount, Transaction txTo, TransactionOutput[] spentOutputs,
-                         int inputIndex, int flags) throws KernelTypes.KernelException {
+                int inputIndex, int flags) throws KernelTypes.KernelException {
             checkClosed();
             txTo.checkClosed();
 
-            // Bounds check input_index to prevent assertion failure in native code
             if (inputIndex < 0 || inputIndex >= txTo.countInputs()) {
                 throw new IndexOutOfBoundsException(
                     "Input index " + inputIndex + " is out of bounds for transaction with " +
@@ -57,23 +90,19 @@ public class KernelData {
             }
 
             try (var arena = Arena.ofConfined()) {
-                // Prepare spent outputs array
                 int numOutputs = (spentOutputs != null) ? spentOutputs.length : 0;
                 MemorySegment outputPtrs;
 
                 if (numOutputs > 0) {
-                    // Allocate array of output pointers
                     outputPtrs = arena.allocate(ValueLayout.ADDRESS, numOutputs);
                     for (int i = 0; i < spentOutputs.length; i++) {
                         outputPtrs.setAtIndex(ValueLayout.ADDRESS, i, spentOutputs[i].getInner());
                     }
                 } else {
-                    // Pass NULL for empty/null spent outputs
                     outputPtrs = MemorySegment.NULL;
                 }
 
                 MemorySegment statusPtr = arena.allocate(ValueLayout.JAVA_BYTE);
-
                 MemorySegment precomputedData = MemorySegment.NULL;
                 if (numOutputs > 0) {
                     precomputedData = btck_precomputed_transaction_data_create(txTo.getInner(), outputPtrs, numOutputs);
@@ -93,43 +122,32 @@ public class KernelData {
                     btck_precomputed_transaction_data_destroy(precomputedData);
                 }
 
-                // Note: return value 1 = success, 0 = error
                 if (result == 0) {
                     byte status = statusPtr.get(ValueLayout.JAVA_BYTE, 0);
                     throw new KernelTypes.KernelException(
-                        KernelTypes.KernelException.ScriptVerifyError.fromNative(status)
-                    );
+                        KernelTypes.KernelException.ScriptVerifyError.fromNative(status));
                 }
-
                 return result;
             }
         }
 
         public byte[] toBytes() {
             checkClosed();
-
             try (var arena = Arena.ofConfined()) {
-                // Create a container to collect bytes
                 java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-
-                // Create the writer callback
                 org.bitcoinkernel.jextract.btck_WriteBytes.Function writer = (bytes, size, userData) -> {
                     try {
-                        byte[] data = bytes.reinterpret(size).toArray(ValueLayout.JAVA_BYTE);
-                        baos.write(data);
-                        return 0; // success
+                        baos.write(bytes.reinterpret(size).toArray(ValueLayout.JAVA_BYTE));
+                        return 0;
                     } catch (Exception e) {
-                        return 1; // error
+                        return 1;
                     }
                 };
-
                 MemorySegment writerSegment = org.bitcoinkernel.jextract.btck_WriteBytes.allocate(writer, arena);
-
                 int result = btck_script_pubkey_to_bytes(inner, writerSegment, MemorySegment.NULL);
                 if (result != 0) {
                     throw new RuntimeException("Failed to serialize ScriptPubkey");
                 }
-
                 return baos.toByteArray();
             } catch (Exception e) {
                 throw new RuntimeException("Failed to serialize ScriptPubkey", e);
@@ -164,22 +182,6 @@ public class KernelData {
             if (arena != null) {
                 arena.close();
             }
-        }
-    }
-
-    // ===== Script Verification Status =====
-    public static class ScriptVerifyStatus {
-        private final MemorySegment inner;
-
-        ScriptVerifyStatus(MemorySegment inner) {
-            if (inner == MemorySegment.NULL) {
-                throw new IllegalArgumentException("ScriptVerifyStatus cannot be null");
-            }
-            this.inner = inner;
-        }
-
-        MemorySegment getInner() {
-            return inner;
         }
     }
 }

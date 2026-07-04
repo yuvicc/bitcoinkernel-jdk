@@ -5,7 +5,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import static org.bitcoinkernel.jextract.bitcoinkernel_h.*;
-import static org.bitcoinkernel.KernelData.*;
+import static org.bitcoinkernel.Script.*;
 
 public class Transactions {
 

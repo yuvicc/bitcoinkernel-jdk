@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.bitcoinkernel.Chainstate.*;
 import static org.bitcoinkernel.Blocks.*;
 import static org.bitcoinkernel.Transactions.*;
-import static org.bitcoinkernel.KernelData.*;
+import static org.bitcoinkernel.Script.*;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class BitcoinKernelTest {
@@ -440,12 +440,12 @@ public class BitcoinKernelTest {
              Transaction tx = new Transaction(txBytes)) {
 
             // Use VERIFY_ALL_PRE_TAPROOT flags
-            int flags = KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_P2SH |
-                       KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_DERSIG |
-                       KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_NULLDUMMY |
-                       KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY |
-                       KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY |
-                       KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_WITNESS;
+            int flags = ScriptVerificationFlags.SCRIPT_VERIFY_P2SH |
+                       ScriptVerificationFlags.SCRIPT_VERIFY_DERSIG |
+                       ScriptVerificationFlags.SCRIPT_VERIFY_NULLDUMMY |
+                       ScriptVerificationFlags.SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY |
+                       ScriptVerificationFlags.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY |
+                       ScriptVerificationFlags.SCRIPT_VERIFY_WITNESS;
 
             scriptPubkey.verify(amount, tx, new TransactionOutput[0], inputIndex, flags);
         }
@@ -464,7 +464,7 @@ public class BitcoinKernelTest {
         try (ScriptPubkey scriptPubkey = new ScriptPubkey(scriptBytes);
              Transaction tx = new Transaction(txBytes)) {
 
-            int validFlags = KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_P2SH;
+            int validFlags = ScriptVerificationFlags.SCRIPT_VERIFY_P2SH;
 
             // Test 1: Input index out of bounds
             assertThrows(IndexOutOfBoundsException.class, () -> {
@@ -474,13 +474,13 @@ public class BitcoinKernelTest {
             // Test 2: Invalid flags combination - WITNESS without required flags
             assertThrows(KernelTypes.KernelException.class, () -> {
                 scriptPubkey.verify(0, tx, new TransactionOutput[0], 0,
-                    KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_WITNESS);
+                    ScriptVerificationFlags.SCRIPT_VERIFY_WITNESS);
             }, "Invalid flags combination should fail");
 
             // Test 3: Spent outputs required for taproot
             assertThrows(KernelTypes.KernelException.class, () -> {
                 scriptPubkey.verify(0, tx, new TransactionOutput[0], 0,
-                    KernelTypes.ScriptVerificationFlags.SCRIPT_VERIFY_TAPROOT);
+                    ScriptVerificationFlags.SCRIPT_VERIFY_TAPROOT);
             }, "Taproot without spent outputs should fail");
         }
 
