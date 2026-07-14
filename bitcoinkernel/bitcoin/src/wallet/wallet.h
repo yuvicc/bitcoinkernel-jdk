@@ -23,6 +23,7 @@
 #include <tinyformat.h>
 #include <uint256.h>
 #include <util/btcsignals.h>
+#include <util/expected.h>
 #include <util/fs.h>
 #include <util/hasher.h>
 #include <util/log.h>
@@ -690,10 +691,19 @@ public:
      * broadcasting the transaction.
      *
      * @param[in] tx The transaction to be broadcast.
-     * @param[in] mapValue key-values to be set on the transaction.
-     * @param[in] orderForm BIP 70 / BIP 21 order form details to be set on the transaction.
+     * @param[in] replaces_txid The txid of the transaction that this transaction replaces
+     * @param[in] comment The user's comment for this transaction
+     * @param[in] comment_to The comment for this transaction indicating where coins are sent to
+     * @param[in] messages The BIP 21 URI messages to attach to this transaction
      */
-    void CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::vector<std::pair<std::string, std::string>> orderForm);
+    void CommitTransaction(
+        CTransactionRef tx,
+        std::optional<Txid> replaces_txid = std::nullopt,
+        std::optional<std::string> comment = std::nullopt,
+        std::optional<std::string> comment_to = std::nullopt,
+        const std::vector<std::string>& messages = {},
+        const std::vector<std::string>& payment_requests = {}
+    );
 
     /** Pass this transaction to node for optional mempool insertion and relay to peers. */
     bool SubmitTxMemoryPoolAndRelay(CWalletTx& wtx, std::string& err_string, node::TxBroadcast broadcast_method) const
@@ -881,7 +891,7 @@ public:
      */
     void postInitProcess();
 
-    bool BackupWallet(const std::string& strDest) const;
+    [[nodiscard]] bool BackupWallet(const std::string& strDest) const;
 
     /* Returns true if HD is enabled */
     bool IsHDEnabled() const;
