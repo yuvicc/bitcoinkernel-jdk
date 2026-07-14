@@ -148,6 +148,27 @@ public class Transactions {
             return new TransactionOutPoint(outPointPtr);
         }
 
+        /**
+         * The witness stack of this input. The returned stack is a view borrowing from this
+         * input, so it stays valid only as long as the input does. Use
+         * {@link WitnessStack#copy()} for a stack that outlives the input.
+         */
+        public WitnessStack getWitnessStack() {
+            checkClosed();
+            MemorySegment witnessStackPtr = btck_transaction_input_get_witness_stack(inner);
+            return new WitnessStack(witnessStackPtr);
+        }
+
+        /**
+         * The scriptSig of this input, empty for inputs that carry their signature data in the
+         * witness stack instead.
+         */
+        public byte[] getScriptSig() {
+            checkClosed();
+            return KernelTypes.collectBytes("script sig",
+                    (writer, userData) -> btck_transaction_input_get_script_sig(inner, writer, userData));
+        }
+
         private void checkClosed() {
             if (inner == MemorySegment.NULL) {
                 throw new IllegalStateException("TransactionInput has been closed");
@@ -162,6 +183,87 @@ public class Transactions {
         public void close() throws Exception {
             if (inner != MemorySegment.NULL && ownsMemory) {
                 btck_transaction_input_destroy(inner);
+                inner = MemorySegment.NULL;
+            }
+        }
+    }
+
+    // ===== Witness Stack =====
+    public static class WitnessStack implements Iterable<byte[]>, AutoCloseable {
+        private MemorySegment inner;
+        private final boolean ownsMemory;
+
+        WitnessStack(MemorySegment inner) {
+            if (inner == MemorySegment.NULL) {
+                throw new IllegalArgumentException("WitnessStack cannot be null");
+            }
+            this.inner = inner;
+            this.ownsMemory = false;
+        }
+
+        private WitnessStack(MemorySegment inner, boolean ownsMemory) {
+            this.inner = inner;
+            this.ownsMemory = ownsMemory;
+        }
+
+        public long countItems() {
+            checkClosed();
+            return btck_witness_stack_count_items(inner);
+        }
+
+        public byte[] getItem(long index) {
+            checkClosed();
+            if (index < 0 || index >= countItems()) {
+                throw new IndexOutOfBoundsException("Witness stack item index out of bounds: " + index);
+            }
+            return KernelTypes.collectBytes("witness stack item",
+                    (writer, userData) -> btck_witness_stack_get_item_at(inner, index, writer, userData));
+        }
+
+        public WitnessStack copy() {
+            checkClosed();
+            MemorySegment copied = btck_witness_stack_copy(inner);
+            if (copied == MemorySegment.NULL) {
+                throw new RuntimeException("Failed to copy WitnessStack");
+            }
+            return new WitnessStack(copied, true);
+        }
+
+        @Override
+        public Iterator<byte[]> iterator() {
+            return new Iterator<>() {
+                private long currentIndex = 0;
+                private final long size = countItems();
+
+                @Override
+                public boolean hasNext() {
+                    return currentIndex < size;
+                }
+
+                @Override
+                public byte[] next() {
+                    if (!hasNext()) {
+                        throw new NoSuchElementException();
+                    }
+                    return getItem(currentIndex++);
+                }
+            };
+        }
+
+        private void checkClosed() {
+            if (inner == MemorySegment.NULL) {
+                throw new IllegalStateException("WitnessStack has been closed");
+            }
+        }
+
+        MemorySegment getInner() {
+            return inner;
+        }
+
+        @Override
+        public void close() {
+            if (inner != MemorySegment.NULL && ownsMemory) {
+                btck_witness_stack_destroy(inner);
                 inner = MemorySegment.NULL;
             }
         }
