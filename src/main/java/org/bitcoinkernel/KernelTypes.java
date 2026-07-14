@@ -1,6 +1,11 @@
 package org.bitcoinkernel;
 
+import java.io.ByteArrayOutputStream;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+
+import org.bitcoinkernel.jextract.btck_WriteBytes;
 
 import static org.bitcoinkernel.jextract.bitcoinkernel_h.*;
 
@@ -22,6 +27,34 @@ public class KernelTypes {
      */
     public static boolean isNull(MemorySegment segment) {
         return segment == null || segment == MemorySegment.NULL || segment.address() == 0;
+    }
+
+    /**
+     * A kernel function that serializes data through a btck_WriteBytes callback.
+     */
+    @FunctionalInterface
+    interface ByteSerializer {
+        int serialize(MemorySegment writer, MemorySegment userData);
+    }
+
+    /**
+     * Collects the bytes handed to the btck_WriteBytes callback of a kernel serialization
+     * function. The kernel returns whatever the callback returned, so a non-zero result means
+     * the write failed.
+     */
+    static byte[] collectBytes(String description, ByteSerializer serializer) {
+        try (Arena arena = Arena.ofConfined()) {
+            ByteArrayOutputStream collected = new ByteArrayOutputStream();
+            MemorySegment writer = btck_WriteBytes.allocate(
+                    (bytes, size, userData) -> {
+                        collected.writeBytes(bytes.reinterpret(size).toArray(ValueLayout.JAVA_BYTE));
+                        return 0;
+                    }, arena);
+            if (serializer.serialize(writer, MemorySegment.NULL) != 0) {
+                throw new RuntimeException("Failed to serialize " + description);
+            }
+            return collected.toByteArray();
+        }
     }
 
     // ===== Log Category =====
