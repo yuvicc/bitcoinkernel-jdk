@@ -3313,6 +3313,65 @@ public class bitcoinkernel_h {
         }
     }
 
+    private static class btck_chain_parameters_create_signet {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_LONG
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_chain_parameters_create_signet");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_ChainParameters *btck_chain_parameters_create_signet(const void *challenge, size_t challenge_len)
+     * }
+     */
+    public static FunctionDescriptor btck_chain_parameters_create_signet$descriptor() {
+        return btck_chain_parameters_create_signet.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_ChainParameters *btck_chain_parameters_create_signet(const void *challenge, size_t challenge_len)
+     * }
+     */
+    public static MethodHandle btck_chain_parameters_create_signet$handle() {
+        return btck_chain_parameters_create_signet.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_ChainParameters *btck_chain_parameters_create_signet(const void *challenge, size_t challenge_len)
+     * }
+     */
+    public static MemorySegment btck_chain_parameters_create_signet$address() {
+        return btck_chain_parameters_create_signet.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_ChainParameters *btck_chain_parameters_create_signet(const void *challenge, size_t challenge_len)
+     * }
+     */
+    public static MemorySegment btck_chain_parameters_create_signet(MemorySegment challenge, long challenge_len) {
+        var mh$ = btck_chain_parameters_create_signet.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_chain_parameters_create_signet", challenge, challenge_len);
+            }
+            return (MemorySegment)mh$.invokeExact(challenge, challenge_len);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class btck_chain_parameters_copy {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             bitcoinkernel_h.C_POINTER,
@@ -6958,6 +7017,124 @@ public class bitcoinkernel_h {
         }
     }
 
+    private static class btck_transaction_input_get_witness_stack {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_input_get_witness_stack");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * const btck_WitnessStack *btck_transaction_input_get_witness_stack(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static FunctionDescriptor btck_transaction_input_get_witness_stack$descriptor() {
+        return btck_transaction_input_get_witness_stack.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * const btck_WitnessStack *btck_transaction_input_get_witness_stack(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static MethodHandle btck_transaction_input_get_witness_stack$handle() {
+        return btck_transaction_input_get_witness_stack.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * const btck_WitnessStack *btck_transaction_input_get_witness_stack(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static MemorySegment btck_transaction_input_get_witness_stack$address() {
+        return btck_transaction_input_get_witness_stack.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * const btck_WitnessStack *btck_transaction_input_get_witness_stack(const btck_TransactionInput *transaction_input)
+     * }
+     */
+    public static MemorySegment btck_transaction_input_get_witness_stack(MemorySegment transaction_input) {
+        var mh$ = btck_transaction_input_get_witness_stack.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_transaction_input_get_witness_stack", transaction_input);
+            }
+            return (MemorySegment)mh$.invokeExact(transaction_input);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_transaction_input_get_script_sig {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_transaction_input_get_script_sig");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * int btck_transaction_input_get_script_sig(const btck_TransactionInput *transaction_input, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static FunctionDescriptor btck_transaction_input_get_script_sig$descriptor() {
+        return btck_transaction_input_get_script_sig.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * int btck_transaction_input_get_script_sig(const btck_TransactionInput *transaction_input, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static MethodHandle btck_transaction_input_get_script_sig$handle() {
+        return btck_transaction_input_get_script_sig.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * int btck_transaction_input_get_script_sig(const btck_TransactionInput *transaction_input, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static MemorySegment btck_transaction_input_get_script_sig$address() {
+        return btck_transaction_input_get_script_sig.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * int btck_transaction_input_get_script_sig(const btck_TransactionInput *transaction_input, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static int btck_transaction_input_get_script_sig(MemorySegment transaction_input, MemorySegment writer, MemorySegment user_data) {
+        var mh$ = btck_transaction_input_get_script_sig.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_transaction_input_get_script_sig", transaction_input, writer, user_data);
+            }
+            return (int)mh$.invokeExact(transaction_input, writer, user_data);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class btck_transaction_input_destroy {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
             bitcoinkernel_h.C_POINTER
@@ -7010,6 +7187,240 @@ public class bitcoinkernel_h {
                 traceDowncall("btck_transaction_input_destroy", transaction_input);
             }
             mh$.invokeExact(transaction_input);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_witness_stack_count_items {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_LONG,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_witness_stack_count_items");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * size_t btck_witness_stack_count_items(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static FunctionDescriptor btck_witness_stack_count_items$descriptor() {
+        return btck_witness_stack_count_items.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * size_t btck_witness_stack_count_items(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static MethodHandle btck_witness_stack_count_items$handle() {
+        return btck_witness_stack_count_items.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * size_t btck_witness_stack_count_items(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static MemorySegment btck_witness_stack_count_items$address() {
+        return btck_witness_stack_count_items.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * size_t btck_witness_stack_count_items(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static long btck_witness_stack_count_items(MemorySegment witness_stack) {
+        var mh$ = btck_witness_stack_count_items.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_witness_stack_count_items", witness_stack);
+            }
+            return (long)mh$.invokeExact(witness_stack);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_witness_stack_get_item_at {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_INT,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_LONG,
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_witness_stack_get_item_at");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * int btck_witness_stack_get_item_at(const btck_WitnessStack *witness_stack, size_t index, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static FunctionDescriptor btck_witness_stack_get_item_at$descriptor() {
+        return btck_witness_stack_get_item_at.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * int btck_witness_stack_get_item_at(const btck_WitnessStack *witness_stack, size_t index, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static MethodHandle btck_witness_stack_get_item_at$handle() {
+        return btck_witness_stack_get_item_at.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * int btck_witness_stack_get_item_at(const btck_WitnessStack *witness_stack, size_t index, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static MemorySegment btck_witness_stack_get_item_at$address() {
+        return btck_witness_stack_get_item_at.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * int btck_witness_stack_get_item_at(const btck_WitnessStack *witness_stack, size_t index, btck_WriteBytes writer, void *user_data)
+     * }
+     */
+    public static int btck_witness_stack_get_item_at(MemorySegment witness_stack, long index, MemorySegment writer, MemorySegment user_data) {
+        var mh$ = btck_witness_stack_get_item_at.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_witness_stack_get_item_at", witness_stack, index, writer, user_data);
+            }
+            return (int)mh$.invokeExact(witness_stack, index, writer, user_data);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_witness_stack_copy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            bitcoinkernel_h.C_POINTER,
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_witness_stack_copy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * btck_WitnessStack *btck_witness_stack_copy(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static FunctionDescriptor btck_witness_stack_copy$descriptor() {
+        return btck_witness_stack_copy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * btck_WitnessStack *btck_witness_stack_copy(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static MethodHandle btck_witness_stack_copy$handle() {
+        return btck_witness_stack_copy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * btck_WitnessStack *btck_witness_stack_copy(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static MemorySegment btck_witness_stack_copy$address() {
+        return btck_witness_stack_copy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * btck_WitnessStack *btck_witness_stack_copy(const btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static MemorySegment btck_witness_stack_copy(MemorySegment witness_stack) {
+        var mh$ = btck_witness_stack_copy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_witness_stack_copy", witness_stack);
+            }
+            return (MemorySegment)mh$.invokeExact(witness_stack);
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class btck_witness_stack_destroy {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            bitcoinkernel_h.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = bitcoinkernel_h.findOrThrow("btck_witness_stack_destroy");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void btck_witness_stack_destroy(btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static FunctionDescriptor btck_witness_stack_destroy$descriptor() {
+        return btck_witness_stack_destroy.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void btck_witness_stack_destroy(btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static MethodHandle btck_witness_stack_destroy$handle() {
+        return btck_witness_stack_destroy.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void btck_witness_stack_destroy(btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static MemorySegment btck_witness_stack_destroy$address() {
+        return btck_witness_stack_destroy.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void btck_witness_stack_destroy(btck_WitnessStack *witness_stack)
+     * }
+     */
+    public static void btck_witness_stack_destroy(MemorySegment witness_stack) {
+        var mh$ = btck_witness_stack_destroy.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("btck_witness_stack_destroy", witness_stack);
+            }
+            mh$.invokeExact(witness_stack);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
