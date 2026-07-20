@@ -133,25 +133,8 @@ public class Script {
 
         public byte[] toBytes() {
             checkClosed();
-            try (var arena = Arena.ofConfined()) {
-                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                org.bitcoinkernel.jextract.btck_WriteBytes.Function writer = (bytes, size, userData) -> {
-                    try {
-                        baos.write(bytes.reinterpret(size).toArray(ValueLayout.JAVA_BYTE));
-                        return 0;
-                    } catch (Exception e) {
-                        return 1;
-                    }
-                };
-                MemorySegment writerSegment = org.bitcoinkernel.jextract.btck_WriteBytes.allocate(writer, arena);
-                int result = btck_script_pubkey_to_bytes(inner, writerSegment, MemorySegment.NULL);
-                if (result != 0) {
-                    throw new RuntimeException("Failed to serialize ScriptPubkey");
-                }
-                return baos.toByteArray();
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to serialize ScriptPubkey", e);
-            }
+            return KernelTypes.collectBytes("ScriptPubkey",
+                    (writer, userData) -> btck_script_pubkey_to_bytes(inner, writer, userData));
         }
 
         public ScriptPubkey copy() {
