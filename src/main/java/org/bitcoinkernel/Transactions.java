@@ -149,6 +149,14 @@ public class Transactions {
         }
 
         /**
+         * The sequence number of this input, widened from an unsigned 32-bit value.
+         */
+        public long getSequence() {
+            checkClosed();
+            return Integer.toUnsignedLong(btck_transaction_input_get_sequence(inner));
+        }
+
+        /**
          * The witness stack of this input. The returned stack is a view borrowing from this
          * input, so it stays valid only as long as the input does. Use
          * {@link WitnessStack#copy()} for a stack that outlives the input.

@@ -85,6 +85,19 @@ public class TransactionInputTest {
     }
 
     @Test
+    public void testGetSequence() throws Exception {
+        try (Transaction tx = new Transaction(hexToBytes(LEGACY_TX_HEX))) {
+            // Both inputs signal RBF with sequence 0xfffffffe, which must not come back negative.
+            assertEquals(0xfffffffeL, tx.getInput(0).getSequence());
+            assertEquals(0xfffffffeL, tx.getInput(1).getSequence());
+        }
+
+        try (Transaction tx = new Transaction(hexToBytes(SEGWIT_TX_HEX))) {
+            assertEquals(0xffffffffL, tx.getInput(0).getSequence());
+        }
+    }
+
+    @Test
     public void testEmptyScriptSigForSegwitInput() throws Exception {
         try (Transaction tx = new Transaction(hexToBytes(SEGWIT_TX_HEX))) {
             assertEquals(0, tx.getInput(0).getScriptSig().length);
