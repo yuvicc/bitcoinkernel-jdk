@@ -499,6 +499,15 @@ public class Blocks {
             return new BlockHash(hashPtr, false);
         }
 
+        public byte[] getMerkleRoot() {
+            checkClosed();
+            try (var tempArena = Arena.ofConfined()) {
+                MemorySegment output = tempArena.allocate(32);
+                btck_block_header_get_merkle_root(inner, output);
+                return output.toArray(ValueLayout.JAVA_BYTE);
+            }
+        }
+
         public int getTimestamp() {
             checkClosed();
             return btck_block_header_get_timestamp(inner);
