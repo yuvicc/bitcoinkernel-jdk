@@ -35,6 +35,7 @@
 #include <util/result.h>
 #include <util/signalinterrupt.h>
 #include <util/task_runner.h>
+#include <util/time.h>
 #include <util/translation.h>
 #include <validation.h>
 #include <validationinterface.h>
@@ -43,6 +44,7 @@
 #include <cstring>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <list>
 #include <memory>
 #include <optional>
@@ -455,6 +457,7 @@ struct ChainstateManagerOptions {
     node::BlockManager::Options m_blockman_options GUARDED_BY(m_mutex);
     std::shared_ptr<const Context> m_context;
     node::ChainstateLoadOptions m_chainstate_load_options GUARDED_BY(m_mutex);
+    uint64_t m_db_cache_bytes GUARDED_BY(m_mutex){DEFAULT_KERNEL_CACHE};
 
     ChainstateManagerOptions(const std::shared_ptr<const Context>& context, const fs::path& data_dir, const fs::path& blocks_dir)
         : m_chainman_options{ChainstateManager::Options{
@@ -503,6 +506,7 @@ struct btck_TransactionInput : Handle<btck_TransactionInput, CTxIn> {};
 struct btck_WitnessStack : Handle<btck_WitnessStack, CScriptWitness> {};
 struct btck_TransactionOutPoint: Handle<btck_TransactionOutPoint, COutPoint> {};
 struct btck_Txid: Handle<btck_Txid, Txid> {};
+struct btck_Wtxid: Handle<btck_Wtxid, Wtxid> {};
 struct btck_PrecomputedTransactionData : Handle<btck_PrecomputedTransactionData, PrecomputedTransactionData> {};
 struct btck_BlockHeader: Handle<btck_BlockHeader, CBlockHeader> {};
 struct btck_ConsensusParams: Handle<btck_ConsensusParams, Consensus::Params> {};
@@ -541,6 +545,11 @@ const btck_TransactionInput* btck_transaction_get_input_at(const btck_Transactio
     return btck_TransactionInput::ref(&btck_Transaction::get(transaction)->vin[input_index]);
 }
 
+uint32_t btck_transaction_get_version(const btck_Transaction* transaction)
+{
+    return btck_Transaction::get(transaction)->version;
+}
+
 uint32_t btck_transaction_get_locktime(const btck_Transaction* transaction)
 {
     return btck_Transaction::get(transaction)->nLockTime;
@@ -549,6 +558,16 @@ uint32_t btck_transaction_get_locktime(const btck_Transaction* transaction)
 const btck_Txid* btck_transaction_get_txid(const btck_Transaction* transaction)
 {
     return btck_Txid::ref(&btck_Transaction::get(transaction)->GetHash());
+}
+
+int btck_transaction_has_witness(const btck_Transaction* transaction)
+{
+    return btck_Transaction::get(transaction)->HasWitness() ? 1 : 0;
+}
+
+const btck_Wtxid* btck_transaction_get_wtxid(const btck_Transaction* transaction)
+{
+    return btck_Wtxid::ref(&btck_Transaction::get(transaction)->GetWitnessHash());
 }
 
 btck_Transaction* btck_transaction_copy(const btck_Transaction* transaction)
@@ -784,6 +803,26 @@ int btck_txid_equals(const btck_Txid* txid1, const btck_Txid* txid2)
 void btck_txid_destroy(btck_Txid* txid)
 {
     delete txid;
+}
+
+btck_Wtxid* btck_wtxid_copy(const btck_Wtxid* wtxid)
+{
+    return btck_Wtxid::copy(wtxid);
+}
+
+void btck_wtxid_to_bytes(const btck_Wtxid* wtxid, unsigned char output[32])
+{
+    std::memcpy(output, btck_Wtxid::get(wtxid).begin(), 32);
+}
+
+int btck_wtxid_equals(const btck_Wtxid* wtxid1, const btck_Wtxid* wtxid2)
+{
+    return btck_Wtxid::get(wtxid1) == btck_Wtxid::get(wtxid2);
+}
+
+void btck_wtxid_destroy(btck_Wtxid* wtxid)
+{
+    delete wtxid;
 }
 
 void btck_logging_set_options(const btck_LoggingOptions options)
@@ -1031,6 +1070,20 @@ void btck_chainstate_manager_options_set_worker_threads_num(btck_ChainstateManag
     btck_ChainstateManagerOptions::get(opts).m_chainman_options.worker_threads_num = worker_threads;
 }
 
+int btck_chainstate_manager_options_set_database_cache_bytes(btck_ChainstateManagerOptions* chainman_opts, uint64_t database_cache_bytes)
+{
+    if (database_cache_bytes < MIN_DBCACHE_BYTES || database_cache_bytes > MAX_DBCACHE_BYTES) {
+        LogError("Failed to set database cache: size is outside the supported range.");
+        return -1;
+    }
+
+    auto& opts{btck_ChainstateManagerOptions::get(chainman_opts)};
+    LOCK(opts.m_mutex);
+    opts.m_db_cache_bytes = database_cache_bytes;
+    opts.m_blockman_options.block_tree_db_params.cache_bytes = kernel::CacheSizes{database_cache_bytes}.block_tree_db;
+    return 0;
+}
+
 void btck_chainstate_manager_options_destroy(btck_ChainstateManagerOptions* options)
 {
     delete options;
@@ -1083,7 +1136,7 @@ btck_ChainstateManager* btck_chainstate_manager_create(
     try {
         const auto chainstate_load_opts{WITH_LOCK(opts.m_mutex, return opts.m_chainstate_load_options)};
 
-        kernel::CacheSizes cache_sizes{DEFAULT_KERNEL_CACHE};
+        const kernel::CacheSizes cache_sizes{WITH_LOCK(opts.m_mutex, return opts.m_db_cache_bytes)};
         auto [status, chainstate_err]{node::LoadChainstate(*chainman, cache_sizes, chainstate_load_opts)};
         if (status != node::ChainstateLoadStatus::SUCCESS) {
             LogError("Failed to load chain state from your data directory: %s", chainstate_err.original);
@@ -1453,6 +1506,11 @@ const btck_BlockHash* btck_block_header_get_prev_hash(const btck_BlockHeader* he
     return btck_BlockHash::ref(&btck_BlockHeader::get(header).hashPrevBlock);
 }
 
+void btck_block_header_get_merkle_root(const btck_BlockHeader* header, unsigned char output[32])
+{
+    std::memcpy(output, btck_BlockHeader::get(header).hashMerkleRoot.begin(), 32);
+}
+
 uint32_t btck_block_header_get_timestamp(const btck_BlockHeader* header)
 {
     return btck_BlockHeader::get(header).nTime;
@@ -1532,4 +1590,14 @@ int btck_transaction_check(const btck_Transaction* tx, btck_TxValidationState* v
     state = TxValidationState{};
     const bool ok = CheckTransaction(*btck_Transaction::get(tx), state);
     return ok ? 1 : 0;
+}
+
+int btck_set_mock_time(int64_t timestamp)
+{
+    constexpr int64_t max_time{std::numeric_limits<uint32_t>::max()};
+    if (timestamp < 0 || timestamp > max_time) {
+        return -1;
+    }
+    SetMockTime(std::chrono::seconds{timestamp});
+    return 0;
 }

@@ -672,4 +672,54 @@ public class BitcoinKernelTest {
         }
         System.out.println("Iterator with block transactions test passed");
     }
+
+    @Test
+    @Order(13)
+    @DisplayName("Test database cache size - range checks and processing with a custom cache")
+    public void testDatabaseCacheBytes(@TempDir Path tempDir) throws Exception {
+        TestSetup setup = testingSetup(tempDir);
+        Path blocksDir = Paths.get(setup.dataDir, "blocks");
+        Files.createDirectories(blocksDir);
+
+        List<byte[]> blockData = readBlockData();
+        ChainstateManagerOptions options = new ChainstateManagerOptions(
+            setup.context,
+            setup.dataDir,
+            blocksDir.toString()
+        );
+
+        // Values below 4 MiB are rejected, as are negative values
+        assertFalse(options.setDatabaseCacheBytes(0));
+        assertFalse(options.setDatabaseCacheBytes((4L << 20) - 1));
+        assertFalse(options.setDatabaseCacheBytes(-1));
+        assertTrue(options.setDatabaseCacheBytes(4L << 20));
+        assertTrue(options.setDatabaseCacheBytes(16L << 20));
+
+        try (ChainstateManager chainman = new ChainstateManager(setup.context, options)) {
+            for (byte[] rawBlock : blockData) {
+                try (Block block = new Block(rawBlock)) {
+                    boolean[] newBlock = new boolean[1];
+                    assertTrue(chainman.ProcessBlock(block, newBlock), "Block processing should succeed");
+                }
+            }
+            assertEquals(blockData.size(), chainman.getChain().getHeight());
+        }
+        System.out.println("Database cache bytes test passed");
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("Test mock time - range checks")
+    public void testSetMockTime() {
+        try {
+            assertTrue(Testing.setMockTime(1714234522L));
+            assertTrue(Testing.setMockTime(0xffffffffL));
+            assertFalse(Testing.setMockTime(-1L));
+            assertFalse(Testing.setMockTime(0x100000000L));
+        } finally {
+            // Restore the system clock so other tests are unaffected
+            assertTrue(Testing.setMockTime(0));
+        }
+        System.out.println("Set mock time test passed");
+    }
 }

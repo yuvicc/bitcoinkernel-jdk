@@ -88,6 +88,33 @@ public class Transactions {
             return new Txid(txidPtr);
         }
 
+        /**
+         * The version of this transaction, widened from an unsigned 32-bit value.
+         */
+        public long getVersion() {
+            checkClosed();
+            return Integer.toUnsignedLong(btck_transaction_get_version(inner));
+        }
+
+        /**
+         * Whether any input of this transaction carries witness data.
+         */
+        public boolean hasWitness() {
+            checkClosed();
+            return btck_transaction_has_witness(inner) != 0;
+        }
+
+        /**
+         * The wtxid of this transaction. The returned wtxid borrows from this transaction,
+         * so it stays valid only as long as the transaction does. Use {@link Wtxid#copy()}
+         * to keep it around longer. For a transaction without witness data this equals the txid.
+         */
+        public Wtxid getWtxid() {
+            checkClosed();
+            MemorySegment wtxidPtr = btck_transaction_get_wtxid(inner);
+            return new Wtxid(wtxidPtr);
+        }
+
         public boolean check(TxValidationState state) {
             checkClosed();
             return btck_transaction_check(inner, state.getInner()) != 0;
@@ -533,6 +560,80 @@ public class Transactions {
         public void close() throws Exception {
             if (inner != MemorySegment.NULL && ownsMemory) {
                 btck_txid_destroy(inner);
+                inner = MemorySegment.NULL;
+            }
+        }
+    }
+
+    // ===== Wtxid =====
+    public static class Wtxid implements AutoCloseable {
+        private MemorySegment inner;
+        private final boolean ownsMemory;
+
+        Wtxid(MemorySegment inner) {
+            if (inner == MemorySegment.NULL) {
+                throw new IllegalArgumentException("Wtxid cannot be null");
+            }
+            this.inner = inner;
+            this.ownsMemory = false;
+        }
+
+        private Wtxid(MemorySegment inner, boolean ownsMemory) {
+            this.inner = inner;
+            this.ownsMemory = ownsMemory;
+        }
+
+        public Wtxid copy() {
+            checkClosed();
+            MemorySegment copied = btck_wtxid_copy(inner);
+            if (copied == MemorySegment.NULL) {
+                throw new RuntimeException("Failed to copy Wtxid");
+            }
+            return new Wtxid(copied, true);
+        }
+
+        public byte[] toBytes() {
+            checkClosed();
+            try (var arena = Arena.ofConfined()) {
+                MemorySegment output = arena.allocate(32);
+                btck_wtxid_to_bytes(inner, output);
+                return output.toArray(ValueLayout.JAVA_BYTE);
+            }
+        }
+
+        public boolean equals(Wtxid other) {
+            checkClosed();
+            if (other == null) {
+                return false;
+            }
+            other.checkClosed();
+            return btck_wtxid_equals(inner, other.getInner()) != 0;
+        }
+
+        @Override
+        public int hashCode() {
+            byte[] bytes = toBytes();
+            int result = 1;
+            for (byte b : bytes) {
+                result = 31 * result + b;
+            }
+            return result;
+        }
+
+        private void checkClosed() {
+            if (inner == MemorySegment.NULL) {
+                throw new IllegalStateException("Wtxid has been closed");
+            }
+        }
+
+        MemorySegment getInner() {
+            return inner;
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (inner != MemorySegment.NULL && ownsMemory) {
+                btck_wtxid_destroy(inner);
                 inner = MemorySegment.NULL;
             }
         }

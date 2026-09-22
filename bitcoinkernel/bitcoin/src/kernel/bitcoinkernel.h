@@ -334,6 +334,13 @@ typedef struct btck_PrecomputedTransactionData btck_PrecomputedTransactionData;
 typedef struct btck_Txid btck_Txid;
 
 /**
+ * Opaque data structure for holding a btck_Wtxid.
+ *
+ * This is a type-safe identifier for a transaction that commits to witness data.
+ */
+typedef struct btck_Wtxid btck_Wtxid;
+
+/**
  * Opaque data structure for holding a btck_BlockHeader.
  */
 typedef struct btck_BlockHeader btck_BlockHeader;
@@ -664,6 +671,15 @@ BITCOINKERNEL_API size_t btck_transaction_count_inputs(
     const btck_Transaction* transaction) BITCOINKERNEL_ARG_NONNULL(1);
 
 /**
+ * @brief Get a transaction's version.
+ *
+ * @param[in] transaction Non-null.
+ * @return                The version.
+ */
+BITCOINKERNEL_API uint32_t btck_transaction_get_version(
+    const btck_Transaction* transaction) BITCOINKERNEL_ARG_NONNULL(1);
+
+/**
  * @brief Get a transaction's nLockTime value.
  *
  * @param[in] transaction Non-null.
@@ -680,6 +696,25 @@ BITCOINKERNEL_API uint32_t btck_transaction_get_locktime(
  * @return                The txid.
  */
 BITCOINKERNEL_API const btck_Txid* btck_transaction_get_txid(
+    const btck_Transaction* transaction) BITCOINKERNEL_ARG_NONNULL(1);
+
+/**
+ * @brief Check whether a transaction has witness data.
+ *
+ * @param[in] transaction Non-null.
+ * @return                1 if the transaction has witness data, 0 if not.
+ */
+BITCOINKERNEL_API int btck_transaction_has_witness(
+    const btck_Transaction* transaction) BITCOINKERNEL_ARG_NONNULL(1);
+
+/**
+ * @brief Get the wtxid of a transaction. The returned wtxid is not owned and
+ * depends on the lifetime of the transaction.
+ *
+ * @param[in] transaction Non-null.
+ * @return                The wtxid.
+ */
+BITCOINKERNEL_API const btck_Wtxid* btck_transaction_get_wtxid(
     const btck_Transaction* transaction) BITCOINKERNEL_ARG_NONNULL(1);
 
 /**
@@ -1194,6 +1229,22 @@ BITCOINKERNEL_API btck_ChainstateManagerOptions* BITCOINKERNEL_WARN_UNUSED_RESUL
 BITCOINKERNEL_API void btck_chainstate_manager_options_set_worker_threads_num(
     btck_ChainstateManagerOptions* chainstate_manager_options,
     int worker_threads) BITCOINKERNEL_ARG_NONNULL(1);
+
+/**
+ * @brief Set the total database cache used by the chainstate manager.
+ *
+ * The total cache is split internally between the block tree database,
+ * chainstate database, and in-memory coins cache. If this function is not
+ * called, the total cache defaults to 450 MiB.
+ *
+ * @param[in] chainstate_manager_options Non-null, options to be set.
+ * @param[in] database_cache_bytes       The total database cache size in bytes. Values below 4 MiB are rejected.
+ *                                       On 32-bit systems, values above 1 GiB are also rejected.
+ * @return                               0 if the set was successful, non-zero if the set failed.
+ */
+BITCOINKERNEL_API int BITCOINKERNEL_WARN_UNUSED_RESULT btck_chainstate_manager_options_set_database_cache_bytes(
+    btck_ChainstateManagerOptions* chainstate_manager_options,
+    uint64_t database_cache_bytes) BITCOINKERNEL_ARG_NONNULL(1);
 
 /**
  * @brief Sets wipe db in the options. In combination with calling
@@ -1856,6 +1907,46 @@ BITCOINKERNEL_API void btck_txid_destroy(btck_Txid* txid);
 
 ///@}
 
+/** @name Wtxid
+ * Functions for working with wtxids.
+ */
+///@{
+
+/**
+ * @brief Copy a wtxid.
+ *
+ * @param[in] wtxid Non-null.
+ * @return          The copied wtxid.
+ */
+BITCOINKERNEL_API btck_Wtxid* BITCOINKERNEL_WARN_UNUSED_RESULT btck_wtxid_copy(
+    const btck_Wtxid* wtxid) BITCOINKERNEL_ARG_NONNULL(1);
+
+/**
+ * @brief Check if two wtxids are equal.
+ *
+ * @param[in] wtxid1 Non-null.
+ * @param[in] wtxid2 Non-null.
+ * @return           0 if the wtxid is not equal.
+ */
+BITCOINKERNEL_API int btck_wtxid_equals(
+    const btck_Wtxid* wtxid1, const btck_Wtxid* wtxid2) BITCOINKERNEL_ARG_NONNULL(1, 2);
+
+/**
+ * @brief Serializes the wtxid to bytes.
+ *
+ * @param[in] wtxid    Non-null.
+ * @param[out] output  The serialized wtxid.
+ */
+BITCOINKERNEL_API void btck_wtxid_to_bytes(
+    const btck_Wtxid* wtxid, unsigned char output[32]) BITCOINKERNEL_ARG_NONNULL(1, 2);
+
+/**
+ * Destroy the wtxid.
+ */
+BITCOINKERNEL_API void btck_wtxid_destroy(btck_Wtxid* wtxid);
+
+///@}
+
 /** @name Coin
  * Functions for working with coins.
  */
@@ -1997,6 +2088,15 @@ BITCOINKERNEL_API const btck_BlockHash* btck_block_header_get_prev_hash(
     const btck_BlockHeader* header) BITCOINKERNEL_ARG_NONNULL(1);
 
 /**
+ * @brief Get the Merkle root from btck_BlockHeader.
+ *
+ * @param[in] header Non-null btck_BlockHeader.
+ * @param[out] output The 32-byte Merkle root.
+ */
+BITCOINKERNEL_API void btck_block_header_get_merkle_root(
+    const btck_BlockHeader* header, unsigned char output[32]) BITCOINKERNEL_ARG_NONNULL(1, 2);
+
+/**
  * @brief Get the timestamp from btck_BlockHeader.
  *
  * @param[in] header    Non-null btck_BlockHeader
@@ -2047,6 +2147,28 @@ BITCOINKERNEL_API int BITCOINKERNEL_WARN_UNUSED_RESULT btck_block_header_to_byte
  * Destroy the btck_BlockHeader.
  */
 BITCOINKERNEL_API void btck_block_header_destroy(btck_BlockHeader* header);
+
+///@}
+
+/** @name Testing
+ * Functions intended for testing purposes only.
+ */
+///@{
+
+/**
+ * @brief Override the current time with a fixed timestamp for testing.
+ *
+ * Affects all kernel time reads globally. The caller is responsible
+ * for gating usage (e.g. restricting to regtest) if desired.
+ *
+ * The upper bound (4294967295) matches the maximum value of a block header
+ * timestamp.
+ *
+ * @param[in] timestamp Unix epoch seconds, or 0 to restore the system clock.
+ * @return              0 on success, non-zero if timestamp is outside the
+ *                      valid [0, 4294967295] range.
+ */
+BITCOINKERNEL_API int BITCOINKERNEL_WARN_UNUSED_RESULT btck_set_mock_time(int64_t timestamp);
 
 ///@}
 

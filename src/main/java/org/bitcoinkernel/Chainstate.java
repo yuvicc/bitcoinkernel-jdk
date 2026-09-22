@@ -154,6 +154,21 @@ public class Chainstate {
             btck_chainstate_manager_options_set_worker_threads_num(inner, workerThreads);
         }
 
+        /**
+         * Set the total database cache in bytes, split internally between the block tree
+         * database, chainstate database and in-memory coins cache. Defaults to 450 MiB.
+         *
+         * @return false if the size is outside the supported range (below 4 MiB, or above
+         *         1 GiB on 32-bit systems)
+         */
+        public boolean setDatabaseCacheBytes(long databaseCacheBytes) {
+            checkClosed();
+            if (databaseCacheBytes < 0) {
+                return false;
+            }
+            return btck_chainstate_manager_options_set_database_cache_bytes(inner, databaseCacheBytes) == 0;
+        }
+
         public boolean setWipeDbs(boolean wipeBlockTree, boolean wipeChainstate) {
             checkClosed();
             return btck_chainstate_manager_options_set_wipe_dbs(
