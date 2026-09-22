@@ -38,6 +38,11 @@ public class BlockHeaderTest {
             assertEquals(0x207fffff, header.getBits());
             assertEquals(0, header.getNonce());
 
+            // Merkle root follows the version and prev hash, in internal byte order
+            assertArrayEquals(
+                hexToBytes("295badc0bdd9a2bc0955d12f337491eae4c87ba4660078c0156310284d47c6ff"),
+                header.getMerkleRoot());
+
             // Check serialization
             byte[] serialized = header.toBytes();
             assertArrayEquals(rawHeader, serialized);
