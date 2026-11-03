@@ -136,8 +136,6 @@ static const int MAX_BLOCKS_IN_TRANSIT_PER_PEER = 16;
 static constexpr auto BLOCK_STALLING_TIMEOUT_DEFAULT{2s};
 /** Maximum timeout for stalling block download. */
 static constexpr auto BLOCK_STALLING_TIMEOUT_MAX{64s};
-/** Time to avoid requesting blocks from a manual peer after it stalls block download. */
-static constexpr auto MANUAL_PEER_BLOCK_DOWNLOAD_COOLDOWN{2min};
 /** Maximum depth of blocks we're willing to serve as compact blocks to peers
  *  when requested. For older blocks, a regular BLOCK response will be sent. */
 static const int MAX_CMPCTBLOCK_DEPTH = 5;
@@ -201,8 +199,6 @@ static constexpr double MAX_ADDR_RATE_PER_SECOND{0.1};
  *  based increments won't go above this, but the MAX_ADDR_TO_SEND increment following GETADDR
  *  is exempt from this limit). */
 static constexpr size_t MAX_ADDR_PROCESSING_TOKEN_BUCKET{MAX_ADDR_TO_SEND};
-/** For private broadcast, send a transaction to this many peers. */
-static constexpr size_t NUM_PRIVATE_BROADCAST_PER_TX{3};
 /** Private broadcast connections must complete within this time. Disconnect the peer if it takes longer. */
 static constexpr auto PRIVATE_BROADCAST_MAX_CONNECTION_LIFETIME{3min};
 
@@ -456,8 +452,6 @@ struct CNodeState {
     std::list<QueuedBlock> vBlocksInFlight;
     //! When the first entry in vBlocksInFlight started downloading. Don't care when vBlocksInFlight is empty.
     std::chrono::microseconds m_downloading_since{0us};
-    //! Time before which block requests should not be sent to this peer.
-    std::chrono::microseconds m_block_download_paused_until{0us};
     //! Whether we consider this a preferred download peer.
     bool fPreferredDownload{false};
     /** Whether this peer wants invs or cmpctblocks (when possible) for block announcements. */
@@ -1749,7 +1743,7 @@ void PeerManagerImpl::ReattemptInitialBroadcast(CScheduler& scheduler)
 
 void PeerManagerImpl::ReattemptPrivateBroadcast(CScheduler& scheduler)
 {
-    // Remove stale transactions that are no longer relevant (e.g. already in
+    // Resolve stale transactions that are no longer relevant (e.g. already in
     // the mempool or mined) and count the remaining ones.
     size_t num_for_rebroadcast{0};
     const auto stale_txs = m_tx_for_private_broadcast.GetStale();
@@ -1759,6 +1753,7 @@ void PeerManagerImpl::ReattemptPrivateBroadcast(CScheduler& scheduler)
             LOCK(cs_main);
             auto mempool_acceptable = m_chainman.ProcessTransaction(stale_tx, /*test_accept=*/true);
             if (mempool_acceptable.m_result_type == MempoolAcceptResult::ResultType::VALID) {
+                if (!m_tx_for_private_broadcast.TryGrantRetry(stale_tx)) continue;
                 LogDebug(BCLog::PRIVBROADCAST,
                          "Reattempting broadcast of stale txid=%s wtxid=%s",
                          stale_tx->GetHash().ToString(), stale_tx->GetWitnessHash().ToString());
@@ -1767,7 +1762,7 @@ void PeerManagerImpl::ReattemptPrivateBroadcast(CScheduler& scheduler)
                 LogDebug(BCLog::PRIVBROADCAST, "Giving up broadcast attempts for txid=%s wtxid=%s: %s",
                          stale_tx->GetHash().ToString(), stale_tx->GetWitnessHash().ToString(),
                          mempool_acceptable.m_state.ToString());
-                m_tx_for_private_broadcast.Remove(stale_tx);
+                m_tx_for_private_broadcast.MarkResolved(stale_tx);
             }
         }
 
@@ -1847,11 +1842,18 @@ void PeerManagerImpl::FinalizeNode(const CNode& node)
         LOCK(m_headers_presync_mutex);
         m_headers_presync_stats.erase(nodeid);
     }
-    if (node.IsPrivateBroadcastConn() &&
-        !m_tx_for_private_broadcast.DidNodeConfirmReception(nodeid) &&
-        m_tx_for_private_broadcast.HavePendingTransactions()) {
-
-        m_connman.m_private_broadcast.NumToOpenAdd(1);
+    if (node.IsPrivateBroadcastConn()) {
+        m_tx_for_private_broadcast.NodeDisconnected(nodeid);
+        // We consider a transaction sent to a peer if we sent them an INV.
+        // Normally they should request the transaction with GETDATA, but this may
+        // not happen if they are already aware of the transaction.
+        // If we didn't send them an INV, schedule a new connection to compensate
+        // for this send failure. Whether we sent them an INV is not readily
+        // available here, so use fSuccessfullyConnected because INV is sent right
+        // after a successful handshake when there is a pending transaction.
+        if (!node.fSuccessfullyConnected && m_tx_for_private_broadcast.HavePendingTransactions()) {
+            m_connman.m_private_broadcast.NumToOpenAdd(1);
+        }
     }
     LogDebug(BCLog::NET, "Cleared nodestate for peer=%d\n", nodeid);
 }
@@ -1992,11 +1994,9 @@ std::vector<CTransactionRef> PeerManagerImpl::AbortPrivateBroadcast(const uint25
     for (const auto& tx_info : snapshot) {
         const CTransactionRef& tx{tx_info.tx};
         if (tx->GetHash().ToUint256() != id && tx->GetWitnessHash().ToUint256() != id) continue;
-        if (const auto peer_acks{m_tx_for_private_broadcast.Remove(tx)}) {
+        if (const auto remaining_sends{m_tx_for_private_broadcast.Remove(tx)}) {
             removed_txs.push_back(tx);
-            if (NUM_PRIVATE_BROADCAST_PER_TX > *peer_acks) {
-                connections_cancelled += (NUM_PRIVATE_BROADCAST_PER_TX - *peer_acks);
-            }
+            connections_cancelled += *remaining_sends;
         }
     }
     m_connman.m_private_broadcast.NumToOpenSub(connections_cancelled);
@@ -2499,8 +2499,8 @@ node::TransactionError PeerManagerImpl::InitiateTxBroadcastPrivate(const CTransa
     const auto txstr{strprintf("txid=%s, wtxid=%s", tx->GetHash().ToString(), tx->GetWitnessHash().ToString())};
     switch (m_tx_for_private_broadcast.Add(tx)) {
     case PrivateBroadcast::AddResult::Added:
-        LogDebug(BCLog::PRIVBROADCAST, "Requesting %d new connections due to %s", NUM_PRIVATE_BROADCAST_PER_TX, txstr);
-        m_connman.m_private_broadcast.NumToOpenAdd(NUM_PRIVATE_BROADCAST_PER_TX);
+        LogDebug(BCLog::PRIVBROADCAST, "Requesting %d new connections due to %s", PrivateBroadcast::INITIAL_CONNECTION_COUNT, txstr);
+        m_connman.m_private_broadcast.NumToOpenAdd(PrivateBroadcast::INITIAL_CONNECTION_COUNT);
         return node::TransactionError::OK;
     case PrivateBroadcast::AddResult::AlreadyPresent:
         LogDebug(BCLog::PRIVBROADCAST, "Ignoring unnecessary request to schedule an already scheduled transaction: %s", txstr);
@@ -4726,15 +4726,10 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         const uint256& hash = peer.m_wtxid_relay ? wtxid.ToUint256() : txid.ToUint256();
         AddKnownTx(peer, hash);
 
-        if (const auto num_broadcasted{m_tx_for_private_broadcast.Remove(ptx)}) {
+        if (m_tx_for_private_broadcast.MarkResolved(ptx)) {
             LogDebug(BCLog::PRIVBROADCAST, "Received our privately broadcast transaction (txid=%s) from the "
-                                           "network from %s; stopping private broadcast attempts",
+                                           "network from %s",
                      txid.ToString(), pfrom.LogPeer());
-            if (NUM_PRIVATE_BROADCAST_PER_TX > num_broadcasted.value()) {
-                // Not all of the initial NUM_PRIVATE_BROADCAST_PER_TX connections were needed.
-                // Tell CConnman it does not need to start the remaining ones.
-                m_connman.m_private_broadcast.NumToOpenSub(NUM_PRIVATE_BROADCAST_PER_TX - num_broadcasted.value());
-            }
         }
 
         LOCK2(cs_main, m_tx_download_mutex);
@@ -5389,6 +5384,12 @@ bool PeerManagerImpl::MaybeDiscourageAndDisconnect(CNode& pnode, Peer& peer)
         return false;
     }
 
+    if (pnode.IsPrivateBroadcastConn()) {
+        LogDebug(BCLog::PRIVBROADCAST, "Disconnecting misbehaving private broadcast peer=%d", peer.m_id);
+        pnode.fDisconnect = true;
+        return true;
+    }
+
     if (pnode.addr.IsLocal()) {
         // We disconnect local peers for bad behavior but don't discourage (since that would discourage
         // all peers on the same local address)
@@ -5401,7 +5402,7 @@ bool PeerManagerImpl::MaybeDiscourageAndDisconnect(CNode& pnode, Peer& peer)
     // Normal case: Disconnect the peer and discourage all nodes sharing the address
     LogDebug(BCLog::NET, "Disconnecting and discouraging peer %d!\n", peer.m_id);
     if (m_banman) m_banman->Discourage(pnode.addr);
-    m_connman.DisconnectNode(pnode.addr);
+    m_connman.DisconnectNode(CSubNet{pnode.addr}, /*disconnect_private_broadcast=*/false);
     return true;
 }
 
@@ -6442,18 +6443,10 @@ bool PeerManagerImpl::SendMessages(CNode& node)
             // Stalling only triggers when the block download window cannot move. During normal steady state,
             // the download window should be much larger than the to-be-downloaded set of blocks, so disconnection
             // should only happen during initial block download.
-            if (node.IsManualConn()) {
-                LogInfo("Pausing block downloads from stalling manual peer=%d for %d seconds\n", node.GetId(), count_seconds(MANUAL_PEER_BLOCK_DOWNLOAD_COOLDOWN));
-                state.m_block_download_paused_until = current_time + MANUAL_PEER_BLOCK_DOWNLOAD_COOLDOWN;
-                while (!state.vBlocksInFlight.empty()) {
-                    RemoveBlockRequest(state.vBlocksInFlight.front().pindex->GetBlockHash(), node.GetId());
-                }
-            } else {
-                LogInfo("Peer is stalling block download, %s", node.DisconnectMsg());
-                node.fDisconnect = true;
-            }
-            // Increase the timeout for the next peer so that we don't repeatedly react to apparent
-            // stalls caused by insufficient local bandwidth.
+            LogInfo("Peer is stalling block download, %s", node.DisconnectMsg());
+            node.fDisconnect = true;
+            // Increase timeout for the next peer so that we don't disconnect multiple peers if our own
+            // bandwidth is insufficient.
             const auto new_timeout = std::min(2 * stalling_timeout, BLOCK_STALLING_TIMEOUT_MAX);
             if (stalling_timeout != new_timeout && m_block_stalling_timeout.compare_exchange_strong(stalling_timeout, new_timeout)) {
                 LogDebug(BCLog::NET, "Increased stalling timeout temporarily to %d seconds\n", count_seconds(new_timeout));
@@ -6515,8 +6508,7 @@ bool PeerManagerImpl::SendMessages(CNode& node)
         // Message: getdata (blocks)
         //
         std::vector<CInv> vGetData;
-        const bool can_request_blocks_from_peer{current_time >= state.m_block_download_paused_until};
-        if (CanServeBlocks(peer) && can_request_blocks_from_peer && ((sync_blocks_and_headers_from_peer && !IsLimitedPeer(peer)) || !m_chainman.IsInitialBlockDownload()) && state.vBlocksInFlight.size() < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
+        if (CanServeBlocks(peer) && ((sync_blocks_and_headers_from_peer && !IsLimitedPeer(peer)) || !m_chainman.IsInitialBlockDownload()) && state.vBlocksInFlight.size() < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
             std::vector<const CBlockIndex*> vToDownload;
             NodeId staller = -1;
             auto get_inflight_budget = [&state]() {
