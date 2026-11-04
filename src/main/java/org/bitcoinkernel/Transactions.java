@@ -637,7 +637,7 @@ public class Transactions {
     }
 
     // ===== Transaction Spent Outputs
-    public static class TransactionSpentOutputs implements Iterable<Coin> {
+    public static class TransactionSpentOutputs implements Iterable<Coin>, AutoCloseable {
         private MemorySegment inner;
         private final boolean ownsMemory;
 
@@ -708,6 +708,7 @@ public class Transactions {
             }
         }
 
+        @Override
         public void close() {
             if (inner != MemorySegment.NULL && ownsMemory) {
                 btck_transaction_spent_outputs_destroy(inner);
