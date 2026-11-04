@@ -741,4 +741,34 @@ public class BitcoinKernelTest {
         }
         System.out.println("TransactionSpentOutputs close borrowed view test passed");
     }
+
+    @Test
+    @Order(16)
+    @DisplayName("Test TransactionSpentOutputs copy outlives BlockSpentOutputs")
+    public void testTransactionSpentOutputsCopyOutlivesBlockSpentOutputs(@TempDir Path tempDir) throws Exception {
+        TestSetup setup = testingSetup(tempDir);
+        try (ChainstateManager chainman = setupChainstateManagerWithBlocks(setup.context, setup.dataDir)) {
+            Chain chain = chainman.getChain();
+            TransactionSpentOutputs copied;
+            // The tip's only non-coinbase transaction spends two outputs created at height 205
+            try (BlockSpentOutputs blockSpent = chainman.readBlockSpentOutputs(chain.getByHeight(206))) {
+                TransactionSpentOutputs borrowed = blockSpent.getTransactionSpentOutputs(0);
+                copied = borrowed.copy();
+                assertNotEquals(borrowed.getInner().address(), copied.getInner().address(),
+                    "copy must wrap the copied pointer, not alias the borrowed one");
+            }
+
+            assertEquals(2, copied.count());
+            for (Coin coin : copied) {
+                assertEquals(205, coin.getConfirmationHeight());
+            }
+
+            copied.close();
+            assertThrows(IllegalStateException.class, copied::count);
+            assertThrows(IllegalStateException.class, copied::copy);
+            // Second close is a no-op
+            copied.close();
+        }
+        System.out.println("TransactionSpentOutputs copy outlives BlockSpentOutputs test passed");
+    }
 }

@@ -672,9 +672,9 @@ public class Transactions {
             checkClosed();
             MemorySegment copied = btck_transaction_spent_outputs_copy(inner);
             if (copied == MemorySegment.NULL) {
-                throw new RuntimeException("Failed to copy coin object");
+                throw new RuntimeException("Failed to copy TransactionSpentOutputs");
             }
-            return new TransactionSpentOutputs(inner, true);
+            return new TransactionSpentOutputs(copied, true);
         }
 
         @Override
