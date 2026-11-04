@@ -722,4 +722,23 @@ public class BitcoinKernelTest {
         }
         System.out.println("Set mock time test passed");
     }
+
+    @Test
+    @Order(15)
+    @DisplayName("Test closing a borrowed TransactionSpentOutputs")
+    public void testTransactionSpentOutputsCloseBorrowedView(@TempDir Path tempDir) throws Exception {
+        TestSetup setup = testingSetup(tempDir);
+        try (ChainstateManager chainman = setupChainstateManagerWithBlocks(setup.context, setup.dataDir)) {
+            Chain chain = chainman.getChain();
+            // Block 202 has 20 non-coinbase transactions, each spending one coinbase output
+            try (BlockSpentOutputs blockSpent = chainman.readBlockSpentOutputs(chain.getByHeight(202))) {
+                // Closing views owned by the block spent outputs must not free them
+                blockSpent.getTransactionSpentOutputs(5).close();
+                blockSpent.getTransactionSpentOutputs(0).close();
+
+                assertEquals(58, blockSpent.getTransactionSpentOutputs(5).getCoin(0).getConfirmationHeight());
+            }
+        }
+        System.out.println("TransactionSpentOutputs close borrowed view test passed");
+    }
 }
