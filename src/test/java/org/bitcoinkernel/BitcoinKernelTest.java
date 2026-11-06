@@ -722,4 +722,53 @@ public class BitcoinKernelTest {
         }
         System.out.println("Set mock time test passed");
     }
+
+    @Test
+    @Order(15)
+    @DisplayName("Test closing a borrowed TransactionSpentOutputs")
+    public void testTransactionSpentOutputsCloseBorrowedView(@TempDir Path tempDir) throws Exception {
+        TestSetup setup = testingSetup(tempDir);
+        try (ChainstateManager chainman = setupChainstateManagerWithBlocks(setup.context, setup.dataDir)) {
+            Chain chain = chainman.getChain();
+            // Block 202 has 20 non-coinbase transactions, each spending one coinbase output
+            try (BlockSpentOutputs blockSpent = chainman.readBlockSpentOutputs(chain.getByHeight(202))) {
+                // Closing views owned by the block spent outputs must not free them
+                blockSpent.getTransactionSpentOutputs(5).close();
+                blockSpent.getTransactionSpentOutputs(0).close();
+
+                assertEquals(58, blockSpent.getTransactionSpentOutputs(5).getCoin(0).getConfirmationHeight());
+            }
+        }
+        System.out.println("TransactionSpentOutputs close borrowed view test passed");
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("Test TransactionSpentOutputs copy outlives BlockSpentOutputs")
+    public void testTransactionSpentOutputsCopyOutlivesBlockSpentOutputs(@TempDir Path tempDir) throws Exception {
+        TestSetup setup = testingSetup(tempDir);
+        try (ChainstateManager chainman = setupChainstateManagerWithBlocks(setup.context, setup.dataDir)) {
+            Chain chain = chainman.getChain();
+            TransactionSpentOutputs copied;
+            // The tip's only non-coinbase transaction spends two outputs created at height 205
+            try (BlockSpentOutputs blockSpent = chainman.readBlockSpentOutputs(chain.getByHeight(206))) {
+                TransactionSpentOutputs borrowed = blockSpent.getTransactionSpentOutputs(0);
+                copied = borrowed.copy();
+                assertNotEquals(borrowed.getInner().address(), copied.getInner().address(),
+                    "copy must wrap the copied pointer, not alias the borrowed one");
+            }
+
+            assertEquals(2, copied.count());
+            for (Coin coin : copied) {
+                assertEquals(205, coin.getConfirmationHeight());
+            }
+
+            copied.close();
+            assertThrows(IllegalStateException.class, copied::count);
+            assertThrows(IllegalStateException.class, copied::copy);
+            // Second close is a no-op
+            copied.close();
+        }
+        System.out.println("TransactionSpentOutputs copy outlives BlockSpentOutputs test passed");
+    }
 }

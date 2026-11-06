@@ -637,8 +637,8 @@ public class Transactions {
     }
 
     // ===== Transaction Spent Outputs
-    public static class TransactionSpentOutputs implements Iterable<Coin> {
-        private final MemorySegment inner;
+    public static class TransactionSpentOutputs implements Iterable<Coin>, AutoCloseable {
+        private MemorySegment inner;
         private final boolean ownsMemory;
 
         TransactionSpentOutputs(MemorySegment inner) {
@@ -655,10 +655,12 @@ public class Transactions {
         }
 
         public long count() {
+            checkClosed();
             return btck_transaction_spent_outputs_count(inner);
         }
 
         public Coin getCoin(long index) {
+            checkClosed();
             if (index < 0 || index >= count()) {
                 throw new IndexOutOfBoundsException("Coin index out of bounds: " + index);
             }
@@ -667,11 +669,12 @@ public class Transactions {
         }
 
         public TransactionSpentOutputs copy() {
+            checkClosed();
             MemorySegment copied = btck_transaction_spent_outputs_copy(inner);
             if (copied == MemorySegment.NULL) {
-                throw new RuntimeException("Failed to copy coin object");
+                throw new RuntimeException("Failed to copy TransactionSpentOutputs");
             }
-            return new TransactionSpentOutputs(inner, true);
+            return new TransactionSpentOutputs(copied, true);
         }
 
         @Override
@@ -699,9 +702,17 @@ public class Transactions {
             return inner;
         }
 
+        private void checkClosed() {
+            if (inner == MemorySegment.NULL) {
+                throw new IllegalStateException("TransactionSpentOutputs has been closed");
+            }
+        }
+
+        @Override
         public void close() {
-            if (inner != MemorySegment.NULL) {
+            if (inner != MemorySegment.NULL && ownsMemory) {
                 btck_transaction_spent_outputs_destroy(inner);
+                inner = MemorySegment.NULL;
             }
         }
     }
