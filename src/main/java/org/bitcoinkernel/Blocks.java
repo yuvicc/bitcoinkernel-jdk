@@ -192,6 +192,9 @@ public class Blocks {
 
         public boolean equals(BlockHash other) {
             checkClosed();
+            if (other == null) {
+                return false;
+            }
             other.checkClosed();
             return btck_block_hash_equals(inner, other.inner) != 0;
         }
