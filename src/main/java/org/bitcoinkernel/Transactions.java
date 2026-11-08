@@ -88,6 +88,17 @@ public class Transactions {
             return new Txid(txidPtr);
         }
 
+        public long getLockTime() {
+            checkClosed();
+            return Integer.toUnsignedLong(btck_transaction_get_locktime(inner));
+        }
+
+        public byte[] toBytes() {
+            checkClosed();
+            return KernelTypes.collectBytes("transaction",
+                    (writer, userData) -> btck_transaction_to_bytes(inner, writer, userData));
+        }
+
         public boolean check(TxValidationState state) {
             checkClosed();
             return btck_transaction_check(inner, state.getInner()) != 0;

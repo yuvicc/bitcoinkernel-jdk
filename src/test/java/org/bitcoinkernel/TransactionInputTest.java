@@ -98,6 +98,24 @@ public class TransactionInputTest {
     }
 
     @Test
+    public void testGetLockTime() throws Exception {
+        try (Transaction tx = new Transaction(hexToBytes(LEGACY_TX_HEX))) {
+            assertEquals(510826L, tx.getLockTime());
+        }
+    }
+
+    @Test
+    public void testToBytesRoundTrip() throws Exception {
+        try (Transaction tx = new Transaction(hexToBytes(LEGACY_TX_HEX))) {
+            assertArrayEquals(hexToBytes(LEGACY_TX_HEX), tx.toBytes());
+        }
+
+        try (Transaction tx = new Transaction(hexToBytes(SEGWIT_TX_HEX))) {
+            assertArrayEquals(hexToBytes(SEGWIT_TX_HEX), tx.toBytes());
+        }
+    }
+
+    @Test
     public void testEmptyScriptSigForSegwitInput() throws Exception {
         try (Transaction tx = new Transaction(hexToBytes(SEGWIT_TX_HEX))) {
             assertEquals(0, tx.getInput(0).getScriptSig().length);
