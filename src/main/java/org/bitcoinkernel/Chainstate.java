@@ -284,7 +284,7 @@ public class Chainstate {
             if (isNull(statePtr)) {
                 return null;
             }
-            return new BlockValidationState(statePtr);
+            return new BlockValidationState(statePtr, true);
         }
 
         public Chain getChain() {
