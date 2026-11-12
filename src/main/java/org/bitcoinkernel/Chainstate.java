@@ -96,11 +96,18 @@ public class Chainstate {
         }
 
         public ConsensusParams getConsensusParams() {
+            checkClosed();
             MemorySegment consensusPtr = btck_chain_parameters_get_consensus_params(inner);
             if (isNull(consensusPtr)) {
                 return null;
             }
             return new ConsensusParams(consensusPtr);
+        }
+
+        private void checkClosed() {
+            if (isNull(inner)) {
+                throw new IllegalStateException("ChainParameters has been closed");
+            }
         }
 
         MemorySegment getInner() {
