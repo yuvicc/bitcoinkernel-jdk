@@ -297,7 +297,7 @@ public class Chainstate {
         public Chain getChain() {
             checkClosed();
             MemorySegment chainPtr = btck_chainstate_manager_get_active_chain(inner);
-            return new Chain(chainPtr);
+            return new Chain(chainPtr, this);
         }
 
         public BlockTreeEntry getBlockTreeEntry(BlockHash blockHash) {
@@ -307,7 +307,7 @@ public class Chainstate {
             if (entry == null) {
                 return null;
             }
-            return new BlockTreeEntry(entry);
+            return new BlockTreeEntry(entry, this);
         }
 
         public Block readBlock(BlockTreeEntry entry) {
@@ -347,27 +347,32 @@ public class Chainstate {
     // Chainstate class
     public static class Chain implements Iterable<BlockTreeEntry> {
         private final MemorySegment inner;
+        private final ChainstateManager chainman;
 
-        Chain(MemorySegment inner) {
+        Chain(MemorySegment inner, ChainstateManager chainman) {
             if (inner == MemorySegment.NULL) {
                 throw new IllegalArgumentException("Chain cannot be null");
             }
             this.inner = inner;
+            this.chainman = chainman;
         }
 
         public int getHeight() {
+            chainman.checkClosed();
             return btck_chain_get_height(inner);
         }
 
         public BlockTreeEntry getByHeight(int height) {
+            chainman.checkClosed();
             MemorySegment entry = btck_chain_get_by_height(inner, height);
             if (entry == MemorySegment.NULL) {
                 throw new IllegalArgumentException("No entry at height: " + height);
             }
-            return new BlockTreeEntry(entry);
+            return new BlockTreeEntry(entry, chainman);
         }
 
         public boolean contains(BlockTreeEntry entry) {
+            chainman.checkClosed();
             return btck_chain_contains(inner, entry.getInner()) != 0;
         }
 
