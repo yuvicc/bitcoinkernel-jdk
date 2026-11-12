@@ -60,14 +60,17 @@ public class Transactions {
         }
 
         public long countInputs() {
+            checkClosed();
             return btck_transaction_count_inputs(inner);
         }
 
         public long countOutputs() {
+            checkClosed();
             return btck_transaction_count_outputs(inner);
         }
 
         public TransactionInput getInput(long index) {
+            checkClosed();
             if (index < 0 || index >= countInputs()) {
                 throw new IndexOutOfBoundsException("Index out of bounds: " + index);
             }
@@ -76,6 +79,7 @@ public class Transactions {
         }
 
         public TransactionOutput getOutput(long index) {
+            checkClosed();
             if (index < 0 || index >= countOutputs()) {
                 throw new IndexOutOfBoundsException("Output index out of bounds: " + index);
             }
@@ -84,6 +88,7 @@ public class Transactions {
         }
 
         public Txid getTxid() {
+            checkClosed();
             MemorySegment txidPtr = btck_transaction_get_txid(inner);
             return new Txid(txidPtr);
         }
@@ -596,11 +601,13 @@ public class Transactions {
         }
 
         public Blocks.ValidationMode getValidationMode() {
+            checkClosed();
             byte mode = btck_tx_validation_state_get_validation_mode(inner);
             return Blocks.ValidationMode.fromByte(mode);
         }
 
         public TxValidationResult getTxValidationResult() {
+            checkClosed();
             int result = btck_tx_validation_state_get_tx_validation_result(inner);
             return TxValidationResult.fromInt(result);
         }
@@ -639,6 +646,12 @@ public class Transactions {
             if (inner != MemorySegment.NULL) {
                 btck_tx_validation_state_destroy(inner);
                 inner = MemorySegment.NULL;
+            }
+        }
+
+        private void checkClosed() {
+            if (KernelTypes.isNull(inner)) {
+                throw new IllegalStateException("TxValidationState has been closed");
             }
         }
 

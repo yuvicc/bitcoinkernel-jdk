@@ -101,11 +101,13 @@ public class Blocks {
         }
 
         public ValidationMode getValidationMode() {
+            checkClosed();
             byte mode = btck_block_validation_state_get_validation_mode(inner);
             return ValidationMode.fromByte(mode);
         }
 
         public BlockValidationResult getBlockValidationResult() {
+            checkClosed();
             int result = btck_block_validation_state_get_block_validation_result(inner);
             return BlockValidationResult.fromInt(result);
         }
@@ -146,6 +148,12 @@ public class Blocks {
             if (!isNull(inner) && ownsMemory) {
                 btck_block_validation_state_destroy(inner);
                 inner = MemorySegment.NULL;
+            }
+        }
+
+        private void checkClosed() {
+            if (isNull(inner)) {
+                throw new IllegalStateException("BlockValidationState has been closed");
             }
         }
 
@@ -244,32 +252,43 @@ public class Blocks {
     // ===== Block Tree Entry =====
     public static class BlockTreeEntry {
         private final MemorySegment inner;
+        private final Chainstate.ChainstateManager chainman;
 
+        // Entries passed to notification callbacks have no ChainstateManager to check.
         BlockTreeEntry(MemorySegment inner) {
+            this(inner, null);
+        }
+
+        BlockTreeEntry(MemorySegment inner, Chainstate.ChainstateManager chainman) {
             if (isNull(inner)) {
                 throw new IllegalArgumentException("Block Tree cannot be null!");
             }
             this.inner = inner;
+            this.chainman = chainman;
         }
 
         public BlockTreeEntry getPrevious() {
+            checkClosed();
             MemorySegment prev = btck_block_tree_entry_get_previous(inner);
             if (isNull(prev)) {
                 return null;
             }
-            return new BlockTreeEntry(prev);
+            return new BlockTreeEntry(prev, chainman);
         }
 
         public int getHeight() {
+            checkClosed();
             return btck_block_tree_entry_get_height(inner);
         }
 
         public BlockHash getBlockHash() {
+            checkClosed();
             MemorySegment hashPtr = btck_block_tree_entry_get_block_hash(inner);
             return new BlockHash(hashPtr, false);
         }
 
         public BlockHeader getBlockHeader() {
+            checkClosed();
             MemorySegment headerPtr = btck_block_tree_entry_get_block_header(inner);
             if (isNull(headerPtr)) {
                 return null;
@@ -279,6 +298,12 @@ public class Blocks {
 
         MemorySegment getInner() {
             return inner;
+        }
+
+        private void checkClosed() {
+            if (chainman != null) {
+                chainman.checkClosed();
+            }
         }
     }
 
@@ -308,6 +333,7 @@ public class Blocks {
         }
 
         public long countTransaction() {
+            checkClosed();
             return btck_block_count_transactions(inner);
         }
 

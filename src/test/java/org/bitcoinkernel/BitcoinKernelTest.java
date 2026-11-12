@@ -771,4 +771,59 @@ public class BitcoinKernelTest {
         }
         System.out.println("TransactionSpentOutputs copy outlives BlockSpentOutputs test passed");
     }
+
+    @Test
+    @Order(17)
+    @DisplayName("Test methods throw after close instead of crashing")
+    public void testUseAfterCloseThrows() throws Exception {
+        Block block = new Block(readBlockData().get(0));
+        Transaction tx = new Transaction(block.getTransaction(0).toBytes());
+        block.close();
+        assertThrows(IllegalStateException.class, block::countTransaction);
+
+        tx.close();
+        assertThrows(IllegalStateException.class, tx::countInputs);
+        assertThrows(IllegalStateException.class, tx::countOutputs);
+        assertThrows(IllegalStateException.class, tx::getTxid);
+        assertThrows(IllegalStateException.class, () -> tx.getInput(-1));
+        assertThrows(IllegalStateException.class, () -> tx.getOutput(-1));
+
+        TxValidationState txState = new TxValidationState();
+        txState.close();
+        assertThrows(IllegalStateException.class, txState::getValidationMode);
+        assertThrows(IllegalStateException.class, txState::getTxValidationResult);
+
+        BlockValidationState blockState = new BlockValidationState();
+        blockState.close();
+        assertThrows(IllegalStateException.class, blockState::getValidationMode);
+        assertThrows(IllegalStateException.class, blockState::getBlockValidationResult);
+
+        ChainParameters params = new ChainParameters(ChainType.REGTEST);
+        params.close();
+        assertThrows(IllegalStateException.class, params::getConsensusParams);
+    }
+
+    @Test
+    @Order(18)
+    @DisplayName("Test chain and block tree entries throw after the chainstate manager is closed")
+    public void testChainViewsThrowAfterManagerClose(@TempDir Path tempDir) throws Exception {
+        TestSetup setup = testingSetup(tempDir);
+        ChainstateManager chainman = setupChainstateManagerWithBlocks(setup.context, setup.dataDir);
+        Chain chain = chainman.getChain();
+        BlockTreeEntry entry = chain.getByHeight(2);
+        BlockTreeEntry previous = entry.getPrevious();
+        BlockTreeEntry byHash = chainman.getBlockTreeEntry(entry.getBlockHash());
+        chainman.close();
+
+        assertThrows(IllegalStateException.class, chain::getHeight);
+        assertThrows(IllegalStateException.class, () -> chain.getByHeight(0));
+        assertThrows(IllegalStateException.class, () -> chain.contains(entry));
+
+        assertThrows(IllegalStateException.class, entry::getHeight);
+        assertThrows(IllegalStateException.class, entry::getPrevious);
+        assertThrows(IllegalStateException.class, entry::getBlockHash);
+        assertThrows(IllegalStateException.class, entry::getBlockHeader);
+        assertThrows(IllegalStateException.class, previous::getHeight);
+        assertThrows(IllegalStateException.class, byHash::getHeight);
+    }
 }
