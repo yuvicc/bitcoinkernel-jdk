@@ -101,11 +101,13 @@ public class Blocks {
         }
 
         public ValidationMode getValidationMode() {
+            checkClosed();
             byte mode = btck_block_validation_state_get_validation_mode(inner);
             return ValidationMode.fromByte(mode);
         }
 
         public BlockValidationResult getBlockValidationResult() {
+            checkClosed();
             int result = btck_block_validation_state_get_block_validation_result(inner);
             return BlockValidationResult.fromInt(result);
         }
@@ -146,6 +148,12 @@ public class Blocks {
             if (!isNull(inner) && ownsMemory) {
                 btck_block_validation_state_destroy(inner);
                 inner = MemorySegment.NULL;
+            }
+        }
+
+        private void checkClosed() {
+            if (isNull(inner)) {
+                throw new IllegalStateException("BlockValidationState has been closed");
             }
         }
 
@@ -308,6 +316,7 @@ public class Blocks {
         }
 
         public long countTransaction() {
+            checkClosed();
             return btck_block_count_transactions(inner);
         }
 
