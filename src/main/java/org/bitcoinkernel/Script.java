@@ -124,6 +124,10 @@ public class Script {
 
                 if (result == 0) {
                     byte status = statusPtr.get(ValueLayout.JAVA_BYTE, 0);
+                    if (status == btck_ScriptVerifyStatus_OK()) {
+                        throw new KernelTypes.KernelException(
+                            KernelTypes.KernelException.ScriptVerifyError.INVALID);
+                    }
                     throw new KernelTypes.KernelException(
                         KernelTypes.KernelException.ScriptVerifyError.fromNative(status));
                 }
