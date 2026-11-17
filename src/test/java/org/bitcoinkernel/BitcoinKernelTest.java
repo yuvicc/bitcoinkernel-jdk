@@ -411,9 +411,10 @@ public class BitcoinKernelTest {
 
         // Test 4: Wrong signature (error expected)
         String scriptPubkey4 = "76a9144bfbaf6afb76cc5771bc6404810d1cc041a6933988ff"; // Changed last byte
-        assertThrows(KernelTypes.KernelException.class, () -> {
+        KernelTypes.KernelException e = assertThrows(KernelTypes.KernelException.class, () -> {
             verifyTest(scriptPubkey4, tx1, 0, 0);
         }, "Wrong signature should fail verification");
+        assertEquals(KernelTypes.KernelException.ScriptVerifyError.INVALID, e.getScriptVerifyError());
 
         // Test 5: Wrong amount (error expected)
         assertThrows(KernelTypes.KernelException.class, () -> {
